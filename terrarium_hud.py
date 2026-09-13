@@ -1,8 +1,5 @@
 """Formatting for the terrarium HUD and debug stream."""
 
-from interaction_controller import InteractionController
-
-
 def behavior_label(bridge, decoder):
     if bridge.mode != "walking":
         return bridge.mode.upper()
@@ -22,8 +19,6 @@ def monitor_fields(controller, bridge, decoder, fly_pos, predator_distance):
         "terrarium_selected": controller.selected_name,
         "terrarium_speed": controller.speed,
         "terrarium_paused": controller.paused,
-        "terrarium_help": InteractionController.HELP if controller.show_help else "",
-        "terrarium_debug": controller.show_debug,
         "fly_pos": [float(x) for x in fly_pos],
         "predator_distance": float(predator_distance),
         "p9": decoder.get_group_rate("forward"),

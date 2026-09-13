@@ -327,24 +327,19 @@ connectome remains in control of the animal:
 python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
 ```
 
-`F9` selects the predator, sugar, poison, food, or danger source.
-`Alt`+`WASD` moves it horizontally; `Alt`+`Q`/`E` moves a 3-D source down/up;
-hold `Shift` for a larger step. `Ctrl`+left-click injects a lateralized,
-transient JO touch pulse (`Alt`+`P` is the reliable keyboard fallback).
-`Alt`+`F` follows the fly, `Alt`+`C` toggles the free/follow camera,
-`Alt`+`R` resets the camera, and MuJoCo's normal mouse wheel zoom remains in
-control. `F10` pauses, `Alt`+`-`/`=` changes real-time playback speed,
-`Alt`+`T` restores object positions, `F11` toggles help, and `F12` toggles
-neural/debug details.
+The controls live entirely on the numeric keypad so they do not trigger
+Windows, desktop, or MuJoCo letter/function-key shortcuts. Numpad `0` selects
+the predator, sugar, poison, food, or danger source; `4`/`6`/`8`/`2` moves it
+horizontally; and `7`/`9` lowers or raises a 3-D source. Hold `Shift` for a
+larger step. Numpad `5` injects a transient JO touch pulse, `Enter` pauses,
+`-`/`+` changes playback speed, `1` follows the fly, `3` toggles free/follow,
+`.` resets the objects and camera, and `/` toggles help.
 
-Terrarium mode opens the brain monitor automatically and keeps a compact
-control reminder on screen. `F11` expands or hides the complete control list.
-
-MuJoCo reserves unmodified letters, numbers, `Tab`, `Space`, brackets, and
-`F1`-`F8` for viewer operations. Terrarium actions therefore use `Alt` chords
-and the unused `F9`-`F12` range. It also keeps contact diagnostics disabled
-after handling `Alt`+`C`, preventing the
-viewer's force arrow from appearing as a large yellow cylinder over the fly.
+The compact control reminder, selected object, pause state, and speed are
+shown in the **Fly Terrarium simulation window title**, where the controls
+actually apply. They are intentionally not displayed on the brain monitor.
+Unhandled keys and the mouse remain available to MuJoCo's native camera and
+visualization controls.
 
 In terrarium mode, looming, touch, taste, and odor are injected at their
 sensory neuron populations. Legacy bridge-level chemical steering and

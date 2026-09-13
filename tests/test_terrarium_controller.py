@@ -57,10 +57,10 @@ class TerrariumControllerTests(unittest.TestCase):
 
     def test_keyboard_controls_world_not_fly(self):
         interaction = InteractionController(self.controller)
-        self.assertFalse(interaction.on_key(ord('W'), alt=False))
-        interaction.on_key(ord('W'), alt=True)
+        self.assertFalse(interaction.on_key(ord('W')))
+        interaction.on_key(interaction.KEY_UP)
         interaction.on_key(interaction.KEY_PAUSE)
-        interaction.on_key(ord('='), alt=True)
+        interaction.on_key(interaction.KEY_FASTER)
         self.assertEqual(self.arena.ball_pos[1], 2)
         self.assertTrue(self.controller.paused)
         self.assertEqual(self.controller.speed, 2)
