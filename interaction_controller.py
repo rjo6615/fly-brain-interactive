@@ -12,7 +12,7 @@ class InteractionController:
     HELP = ("Left-drag objects | drag+wheel height | right-click deselect | "
             "H or KP / help | L labels | Tab HUD | F or KP 1 follow | "
             "C or KP 3 camera | Space or KP Enter pause | KP 0 select | "
-            "KP 5 poke | "
+            "KP 4/6/8/2 move fallback | KP 7/9 height | KP 5 poke | "
             "KP +/- speed | Backspace or KP . reset")
 
     # Keep remaining terrarium key actions on the numeric keypad. Unlike

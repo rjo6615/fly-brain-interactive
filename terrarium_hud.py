@@ -52,8 +52,12 @@ class TerrariumHUD:
         add(mujoco.mjtGridPos.mjGRID_BOTTOMLEFT, "SENSORY INPUT",
             "\n".join(f"{name:<9} {float(val or 0):.2f}"
                       for name, val in sensory))
-        controls = ("Left-drag  move on floor\nWheel while dragging  height\n"
-                    "Right-click  deselect")
+        if c.mouse_available:
+            controls = ("Left-drag  move on floor\nWheel while dragging  height\n"
+                        "Right-click  deselect")
+        else:
+            controls = ("KP 0  select\nKP 4/6/8/2  move\n"
+                        "KP 7/9  height  (mouse unavailable)")
         if c.selection_notice_visible:
             controls = f"SELECTED: {c.selected_name}\n\n" + controls
         add(mujoco.mjtGridPos.mjGRID_BOTTOMRIGHT, "OBJECT CONTROL", controls)

@@ -542,6 +542,11 @@ def main():
         if viewer is not None:
             terrarium_hud = TerrariumHUD(viewer, terrarium_ref[0], camera)
             mouse_ref[0] = MouseInteraction(viewer, terrarium_ref[0])
+            terrarium_ref[0].mouse_available = mouse_ref[0].available
+            if not mouse_ref[0].available:
+                print("[Terrarium] Mouse drag unavailable: "
+                      f"{mouse_ref[0].unavailable_reason}. "
+                      "Using numpad movement fallback.")
 
     wall_sensor = None
     if args.terrarium and somato is not None:

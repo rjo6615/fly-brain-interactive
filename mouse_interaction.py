@@ -17,15 +17,32 @@ class MouseInteraction:
     HEIGHT_PER_NOTCH = 0.5
 
     def __init__(self, viewer, controller):
-        import glfw
-
-        self.glfw = glfw
         self.viewer = viewer
         self.controller = controller
-        self.window = viewer._window
         self.events = queue.SimpleQueue()
         self.dragging = False
         self._left_down = False
+
+        # ``launch_passive`` returns a public ``Handle``.  Some MuJoCo builds
+        # (notably the Windows wheels) deliberately do not expose the private
+        # GLFW window on that handle.  Probe both historical locations without
+        # assuming either exists; lack of a window must never abort the sim.
+        self.window = getattr(viewer, "_window", None)
+        sim_ref = getattr(viewer, "_sim", None)
+        sim = sim_ref() if callable(sim_ref) else sim_ref
+        if self.window is None and sim is not None:
+            self.window = getattr(sim, "_window", None)
+        self.available = self.window is not None
+        self.unavailable_reason = (
+            "this MuJoCo passive-viewer Handle does not expose its GLFW window"
+            if not self.available else None)
+        if not self.available:
+            self.glfw = None
+            return
+
+        import glfw
+
+        self.glfw = glfw
         self._old_button = glfw.set_mouse_button_callback(
             self.window, self._mouse_button)
         self._old_cursor = glfw.set_cursor_pos_callback(
@@ -105,6 +122,8 @@ class MouseInteraction:
 
     def poll(self):
         """Apply queued mouse input; call only from the simulation thread."""
+        if not self.available:
+            return
         while True:
             try:
                 event = self.events.get_nowait()

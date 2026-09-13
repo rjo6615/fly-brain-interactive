@@ -42,6 +42,7 @@ class TerrariumController:
         self.show_hud = True
         self.show_labels = False
         self.show_debug = False
+        self.mouse_available = True
         self.poke = None
         self.selection_changed_at = time.monotonic()
         if hasattr(arena, "set_selected_position"):

@@ -68,13 +68,13 @@ class TerrariumControllerTests(unittest.TestCase):
         self.controller.consume_poke_rates(0.1, 200)
         self.assertIsNone(self.controller.poke)
 
-    def test_keyboard_object_nudging_is_removed(self):
+    def test_keyboard_object_nudging_remains_as_compatibility_fallback(self):
         interaction = InteractionController(self.controller)
         # Remains safe for users updating from the window-title implementation,
         # whose on_key method may still invoke this compatibility hook.
         self.assertIsNone(interaction.update_window_title())
         self.assertFalse(interaction.on_key(ord('W')))
-        self.assertFalse(interaction.on_key(interaction.KEY_UP))
+        self.assertTrue(interaction.on_key(interaction.KEY_UP))
         interaction.on_key(interaction.KEY_PAUSE)
         interaction.on_key(interaction.KEY_FASTER)
         self.assertEqual(self.arena.ball_pos[1], 0)

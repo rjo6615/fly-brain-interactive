@@ -342,6 +342,11 @@ activity use compact screen-edge panels. Object labels are off by default; a
 small brass ring marks the selected object. The mouse adapter chains MuJoCo's
 native GLFW handlers for non-object camera gestures; both mouse
 and key callbacks only queue commands for the simulation thread.
+Because the public passive-viewer `Handle` in some MuJoCo builds (including
+some Windows wheels) does not expose its GLFW window, startup detects that
+capability instead of assuming the private `_window` attribute exists. In that
+case the simulation remains usable and reports the numpad selection/movement
+controls as a compatibility fallback.
 
 In terrarium mode, looming, touch, taste, and odor are injected at their
 sensory neuron populations. Legacy bridge-level chemical steering and
