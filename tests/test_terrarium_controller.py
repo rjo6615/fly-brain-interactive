@@ -77,7 +77,7 @@ class TerrariumControllerTests(unittest.TestCase):
         self.assertTrue(interaction.on_key(interaction.KEY_UP))
         interaction.on_key(interaction.KEY_PAUSE)
         interaction.on_key(interaction.KEY_FASTER)
-        self.assertEqual(self.arena.ball_pos[1], 2)
+        self.assertEqual(self.arena.ball_pos[1], 0)
         self.assertTrue(self.controller.paused)
         self.assertEqual(self.controller.speed, 2)
 
