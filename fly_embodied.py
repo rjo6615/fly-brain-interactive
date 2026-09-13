@@ -156,6 +156,8 @@ def main():
                         '(Phi/IIT, GWT, Self-Model, Perturbation)')
     parser.add_argument('--terrarium', action='store_true',
                         help='Enable interactive world, camera, pause and HUD controls')
+    parser.add_argument('--terrarium-input-debug', action='store_true',
+                        help='Log GLFW, native picking, and world drag events')
     args = parser.parse_args()
 
     # -- State --
@@ -541,7 +543,8 @@ def main():
         interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
         if viewer is not None:
             terrarium_hud = TerrariumHUD(viewer, terrarium_ref[0], camera)
-            mouse_ref[0] = MouseInteraction(viewer, terrarium_ref[0])
+            mouse_ref[0] = MouseInteraction(
+                viewer, terrarium_ref[0], debug=args.terrarium_input_debug)
             terrarium_ref[0].mouse_available = mouse_ref[0].available
             if not mouse_ref[0].available:
                 print("[Terrarium] Mouse drag unavailable: "

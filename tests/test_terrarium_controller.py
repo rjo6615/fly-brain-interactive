@@ -39,12 +39,13 @@ class TerrariumControllerTests(unittest.TestCase):
             self.arena, [self.sugar], [self.food])
 
     def test_moves_selected_world_object(self):
+        self.controller.select(0)
         self.controller.move_selected(dx=-1, dy=1)
         np.testing.assert_allclose(self.arena.ball_pos, [8, 2, 2])
         self.assertEqual(self.arena.synced, 1)
 
     def test_selected_sources_share_sensory_position_arrays(self):
-        self.controller.select_next()
+        self.controller.select(1)
         self.assertIs(self.arena.selected_position, self.sugar.center)
         self.controller.move_selected(dx=1)
         np.testing.assert_allclose(self.sugar.center, [3, 2])
@@ -57,6 +58,15 @@ class TerrariumControllerTests(unittest.TestCase):
         self.controller.select(None)
         self.assertEqual(self.controller.selected_name, "NONE")
         self.assertIsNone(self.arena.selected_position)
+
+    def test_picked_geom_names_map_to_shared_sensory_objects(self):
+        self.assertEqual(self.controller.index_for_geom(
+            "arena/looming_predator_leg_-1_2"), 0)
+        self.assertEqual(self.controller.index_for_geom(
+            "arena/sugar_crystal_0_2"), 1)
+        self.assertEqual(self.controller.index_for_geom(
+            "arena/odor_source_0_fruit"), 2)
+        self.assertIsNone(self.controller.index_for_geom("arena/decor_pebble_a"))
 
     def test_poke_is_lateralized_transient_and_summates(self):
         self.controller.queue_poke('left', 0.4)

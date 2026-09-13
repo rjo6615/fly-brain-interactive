@@ -26,6 +26,7 @@ class TerrariumController:
 
     def __init__(self, arena, taste_zones, odor_sources):
         self.arena = arena
+        self._taste_count = len(taste_zones)
         self.objects = [("PREDATOR", arena.ball_pos)]
         taste_names = {"sugar": "SUGAR", "bitter": "POISON"}
         odor_names = {"attractive": "FOOD", "repulsive": "DANGER"}
@@ -35,7 +36,7 @@ class TerrariumController:
         self.objects += [
             (odor_names.get(getattr(s, "odor_type", ""), s.label.upper()),
              s.position) for s in odor_sources]
-        self.selected = 0
+        self.selected = None
         self.paused = False
         self.speed = 1.0
         self.show_help = False
@@ -46,7 +47,27 @@ class TerrariumController:
         self.poke = None
         self.selection_changed_at = time.monotonic()
         if hasattr(arena, "set_selected_position"):
-            arena.set_selected_position(self.objects[0][1])
+            arena.set_selected_position(None)
+
+    def index_for_geom(self, geom_name):
+        """Map a depth-picked MJCF geom to its interactive sensory object."""
+        leaf = geom_name.rsplit("/", 1)[-1]
+        if leaf.startswith("looming_predator_"):
+            return 0
+        if leaf.startswith(("taste_zone_", "sugar_crystal_", "poison_")):
+            try:
+                source_index = int(leaf.split("_")[2])
+            except (IndexError, ValueError):
+                return None
+            return 1 + source_index
+        if leaf.startswith(("odor_source_", "fruit_", "danger_", "odor_halo_")):
+            parts = leaf.split("_")
+            try:
+                source_index = next(int(part) for part in parts if part.isdigit())
+            except StopIteration:
+                return None
+            return 1 + self._taste_count + source_index
+        return None
 
     @property
     def selected_name(self):
