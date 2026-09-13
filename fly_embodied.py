@@ -25,6 +25,7 @@ Keys (in MuJoCo viewer window):
 
 import sys
 import argparse
+import queue
 import numpy as np
 import mujoco
 import mujoco.viewer
@@ -179,14 +180,14 @@ def main():
     GLFW_KEY_SPACE = 32
     terrarium_ref = [None]
     interaction_ref = [None]
+    # MuJoCo invokes key_callback from its viewer thread. Never mutate the
+    # controller, arena, camera, model, or data there; doing so races the main
+    # simulation thread and can terminate the native viewer (notably on KP 0).
+    terrarium_keys = queue.SimpleQueue()
 
     def key_callback(keycode):
         if args.terrarium and interaction_ref[0] is not None:
-            # Once the chained GLFW callback is installed it supplies modifier
-            # state and calls the controller itself. Avoid handling it twice.
-            if interaction_ref[0]._owns_keyboard_callback:
-                return
-            interaction_ref[0].on_key(keycode)
+            terrarium_keys.put(keycode)
             return
         if keycode == GLFW_KEY_SPACE:
             auto_demo_enabled[0] = not auto_demo_enabled[0]
@@ -347,7 +348,7 @@ def main():
         angle_str = f" angle={args.approach_angle}°" if args.approach_angle != 0 else ""
         print(f"[Visual] LoomingArena: r=6mm sphere from {arena_start:.0f}mm at 15mm/s{angle_str}")
         if args.terrarium:
-            arena_kwargs['arena'].interactive = True
+            arena_kwargs['arena'].enable_interactive()
 
     sim = HybridTurningController(
         fly=fly,
@@ -533,8 +534,6 @@ def main():
         terrarium_ref[0] = TerrariumController(
             arena_kwargs['arena'], taste_zones, odor_sources)
         interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
-        if viewer is not None and not interaction_ref[0].attach_mouse(viewer):
-            print('[Terrarium] Mouse hook unavailable; P remains available for poking')
 
     # ── Set initial stimulus ──
     if brain is not None:
@@ -609,6 +608,16 @@ def main():
     # ── Main loop ──
     try:
         while True:
+            # Apply viewer input on the simulation thread. SimpleQueue keeps
+            # the cross-thread callback itself limited to an atomic enqueue.
+            if interaction_ref[0] is not None:
+                while True:
+                    try:
+                        keycode = terrarium_keys.get_nowait()
+                    except queue.Empty:
+                        break
+                    interaction_ref[0].on_key(keycode)
+
             # Check exit conditions
             if viewer is not None:
                 if not viewer.is_running():
