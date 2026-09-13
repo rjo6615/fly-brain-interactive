@@ -98,7 +98,7 @@ class LoomingArena(BaseArena):
             self.root_element, TERRARIUM_HALF_SIZE)
         self.friction = (1, 0.005, 0.0001)
 
-        # ── Looming sphere (dark, menacing, slightly reflective) ──
+        # ── Looming predator: a strong insect-like silhouette ──
         ball_mat = self.root_element.asset.add(
             "material",
             name="threat_ball",
@@ -109,18 +109,27 @@ class LoomingArena(BaseArena):
         )
         self.object_body = self.root_element.worldbody.add(
             "body",
-            name="looming_sphere",
+            name="looming_predator",
             mocap=True,
             pos=self.ball_start.tolist(),
             gravcomp=1,
         )
         self.object_body.add(
             "geom",
-            name="looming_ball",
-            type="sphere",
-            size=(ball_radius,),
+            name="looming_predator_abdomen", type="ellipsoid",
+            size=(ball_radius, ball_radius * .62, ball_radius * .62),
             material=ball_mat,
         )
+        self.object_body.add(
+            "geom", name="looming_predator_head", type="sphere",
+            size=(ball_radius * .48,), pos=(-ball_radius * .82, 0, 0),
+            material=ball_mat)
+        for side in (-1, 1):
+            self.object_body.add(
+                "geom", name=f"looming_predator_wing_{side}", type="ellipsoid",
+                size=(ball_radius * .75, ball_radius * .12, ball_radius * .42),
+                pos=(0, side * ball_radius * .75, ball_radius * .15),
+                euler=(0, -.25, side * .35), rgba=(.12, .10, .15, .82))
         # ── Taste zones: crystal sugar and a contaminated dark-red patch ──
         _TASTE_LABELS = {'sugar': 'Sugar', 'bitter': 'Poison'}
         if taste_zones:
@@ -141,15 +150,28 @@ class LoomingArena(BaseArena):
                     "body", name=f"taste_object_{i}", mocap=True,
                     pos=(zone.center[0], zone.center[1], 0.0))
                 body.add(
-                    "geom",
-                    name=f"taste_zone_{i}_{zone.taste}",
-                    type="cylinder",
-                    size=(zone.radius, 0.08),
-                    pos=(0, 0, 0.081),
-                    material=mat,
-                    conaffinity=0,
-                    contype=0,
-                )
+                    "geom", name=f"taste_zone_{i}_{zone.taste}",
+                    type="cylinder", size=(zone.radius, .07),
+                    pos=(0, 0, .071), material=mat,
+                    conaffinity=0, contype=0)
+                if zone.taste == 'sugar':
+                    for j, (x, y, s) in enumerate(((-.7, 0, .55),
+                                                   (.55, .35, .45),
+                                                   (.25, -.65, .38))):
+                        body.add(
+                            "geom", name=f"sugar_crystal_{i}_{j}", type="box",
+                            size=(s, s, s), pos=(x, y, s),
+                            euler=(.2, .35, .2*j), material=mat,
+                            conaffinity=0, contype=0)
+                else:
+                    for j, (x, y, s) in enumerate(((-.8, .5, .45),
+                                                   (.7, -.3, .55),
+                                                   (0, -.8, .32))):
+                        body.add(
+                            "geom", name=f"poison_bubble_{i}_{j}", type="sphere",
+                            size=(s,), pos=(x, y, .15+s*.65),
+                            rgba=(.12, .015, .02, 1),
+                            conaffinity=0, contype=0)
                 # Floating label site above zone
                 label = _TASTE_LABELS.get(zone.taste, zone.taste.upper())
                 body.add(
@@ -184,16 +206,28 @@ class LoomingArena(BaseArena):
                 body = self.root_element.worldbody.add(
                     "body", name=f"odor_object_{i}", mocap=True,
                     pos=src.position.tolist())
-                body.add(
-                    "geom",
-                    name=f"odor_source_{i}_{src.odor_type}",
-                    type="sphere",
-                    size=(1.7,),
-                    pos=(0, 0, 0.5),
-                    material=mat_core,
-                    conaffinity=0,
-                    contype=0,
-                )
+                if src.odor_type == 'attractive':
+                    body.add(
+                        "geom", name=f"odor_source_{i}_fruit", type="ellipsoid",
+                        size=(1.8, 1.5, 1.35), pos=(0, 0, 1.2),
+                        material=mat_core, conaffinity=0, contype=0)
+                    body.add(
+                        "geom", name=f"fruit_leaf_{i}", type="ellipsoid",
+                        size=(.9, .35, .10), pos=(.45, 0, 2.55),
+                        euler=(0, .35, .2), rgba=(.16, .42, .08, 1),
+                        conaffinity=0, contype=0)
+                else:
+                    for j, (x, y, s) in enumerate(((0, 0, 1.25),
+                                                   (-.9, .5, .9),
+                                                   (.85, .45, .72))):
+                        body.add(
+                            "geom", name=f"danger_clump_{i}_{j}", type="sphere",
+                            size=(s,), pos=(x, y, s), material=mat_core,
+                            conaffinity=0, contype=0)
+                    body.add(
+                        "geom", name=f"danger_spike_{i}", type="capsule",
+                        size=(.35, 1.2), pos=(0, 0, 2.35), material=mat_core,
+                        conaffinity=0, contype=0)
                 # Translucent halo
                 halo_rgba = (rgba[0], rgba[1], rgba[2], 0.15)
                 mat_halo = self.root_element.asset.add(
@@ -280,9 +314,12 @@ class LoomingArena(BaseArena):
                 zone.center[0], zone.center[1], 0.0)
         for src in self._odor_sources:
             self._physics.bind(src._arena_body).mocap_pos = src.position
-        selected = np.asarray(self._selected_position)
-        self._physics.bind(self.selection_body).mocap_pos = (
-            selected[0], selected[1], 0.09)
+        if self._selected_position is None:
+            self._physics.bind(self.selection_body).mocap_pos = (0, 0, -100)
+        else:
+            selected = np.asarray(self._selected_position)
+            self._physics.bind(self.selection_body).mocap_pos = (
+                selected[0], selected[1], 0.09)
 
     def reset_interactive_objects(self):
         """Restore the authored positions without resetting neural state."""

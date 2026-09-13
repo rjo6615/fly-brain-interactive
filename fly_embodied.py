@@ -50,6 +50,8 @@ from terrarium_controller import TerrariumController
 from interaction_controller import InteractionController
 from camera_controller import CameraController
 from terrarium_hud import TerrariumHUD, monitor_fields
+from mouse_interaction import MouseInteraction
+from wall_sensing import WallMechanosensor
 
 try:
     from consciousness import ConsciousnessDetector
@@ -180,6 +182,7 @@ def main():
     GLFW_KEY_SPACE = 32
     terrarium_ref = [None]
     interaction_ref = [None]
+    mouse_ref = [None]
     # MuJoCo invokes key_callback from its viewer thread. Never mutate the
     # controller, arena, camera, model, or data there; doing so races the main
     # simulation thread and can terminate the native viewer (notably on KP 0).
@@ -538,6 +541,11 @@ def main():
         interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
         if viewer is not None:
             terrarium_hud = TerrariumHUD(viewer, terrarium_ref[0], camera)
+            mouse_ref[0] = MouseInteraction(viewer, terrarium_ref[0])
+
+    wall_sensor = None
+    if args.terrarium and somato is not None:
+        wall_sensor = WallMechanosensor(sim.physics.model.ptr)
 
     # ── Set initial stimulus ──
     if brain is not None:
@@ -621,6 +629,8 @@ def main():
                     except queue.Empty:
                         break
                     interaction_ref[0].on_key(keycode)
+            if mouse_ref[0] is not None:
+                mouse_ref[0].poll()
 
             # Check exit conditions
             if viewer is not None:
@@ -716,6 +726,23 @@ def main():
                 # Touch: read contact forces from MuJoCo
                 contact_forces = obs.get('contact_forces', np.zeros((36, 3)))
                 somato.process_contact(contact_forces)
+
+                # Physical glass contacts on any fly body geom become
+                # lateralized JO input.  This updates the connectome; it does
+                # not reverse, turn, or otherwise command the animal.
+                if wall_sensor is not None:
+                    fly_pos_wall = obs['fly'][0]
+                    fly_orient_wall = obs.get('fly_orientation', np.zeros(3))
+                    heading_wall = float(np.arctan2(
+                        fly_orient_wall[1], fly_orient_wall[0]))
+                    wall_l, wall_r, wall_force = wall_sensor.rates(
+                        sim.physics.data.ptr, fly_pos_wall, heading_wall,
+                        somato.TOUCH_MAX_RATE, somato.FORCE_FLOOR,
+                        somato.FORCE_SAT)
+                    somato.touch_rate_left = max(somato.touch_rate_left, wall_l)
+                    somato.touch_rate_right = max(somato.touch_rate_right, wall_r)
+                    somato.max_contact_force = max(
+                        somato.max_contact_force, wall_force)
 
                 # Mouse/P pokes enter the same JO mechanosensory populations.
                 # No behavioral mode or motor action is selected here.
