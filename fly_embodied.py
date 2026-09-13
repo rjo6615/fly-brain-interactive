@@ -182,10 +182,6 @@ def main():
 
     def key_callback(keycode):
         if args.terrarium and interaction_ref[0] is not None:
-            # Once the chained GLFW callback is installed it supplies modifier
-            # state and calls the controller itself. Avoid handling it twice.
-            if interaction_ref[0]._owns_keyboard_callback:
-                return
             interaction_ref[0].on_key(keycode)
             return
         if keycode == GLFW_KEY_SPACE:
@@ -347,7 +343,7 @@ def main():
         angle_str = f" angle={args.approach_angle}°" if args.approach_angle != 0 else ""
         print(f"[Visual] LoomingArena: r=6mm sphere from {arena_start:.0f}mm at 15mm/s{angle_str}")
         if args.terrarium:
-            arena_kwargs['arena'].interactive = True
+            arena_kwargs['arena'].enable_interactive()
 
     sim = HybridTurningController(
         fly=fly,
@@ -533,8 +529,6 @@ def main():
         terrarium_ref[0] = TerrariumController(
             arena_kwargs['arena'], taste_zones, odor_sources)
         interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
-        if viewer is not None and not interaction_ref[0].attach_mouse(viewer):
-            print('[Terrarium] Mouse hook unavailable; P remains available for poking')
 
     # ── Set initial stimulus ──
     if brain is not None:
