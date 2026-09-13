@@ -41,7 +41,9 @@ class TerrariumController:
         self.speed = 1.0
         self.show_help = False
         self.show_hud = True
-        self.show_labels = False
+        # Object names are essential orientation cues, not debug clutter.
+        # They can still be hidden with L for an unobstructed scene.
+        self.show_labels = True
         self.show_debug = False
         self.mouse_available = True
         self.poke = None
