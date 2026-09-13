@@ -447,6 +447,11 @@ class BrainEngine:
         current = self.rates[0, indices]
         self.rates[0, indices] = torch.maximum(current, new_rates)
 
+    def clear_sensory_rates(self, indices):
+        """Clear a sensor population before replacing its current sample."""
+        if indices is not None and len(indices) > 0:
+            self.rates[0, indices] = 0.0
+
     @torch.no_grad()
     def step(self):
         """Advance brain by one timestep (0.1 ms). Returns spike tensor."""
