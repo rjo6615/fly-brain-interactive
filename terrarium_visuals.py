@@ -19,6 +19,8 @@ def add_terrarium_shell(root, half_size=TERRARIUM_HALF_SIZE):
         "stone": ((0.32, 0.31, 0.28, 1), 0.06),
         "moss": ((0.20, 0.30, 0.12, 1), 0.0),
         "leaf": ((0.30, 0.25, 0.09, 1), 0.0),
+        "soil_light": ((0.27, 0.19, 0.105, 1), 0.0),
+        "soil_dark": ((0.145, 0.095, 0.055, 1), 0.0),
     }
     mats = {}
     for name, (rgba, reflectance) in materials.items():
@@ -29,6 +31,16 @@ def add_terrarium_shell(root, half_size=TERRARIUM_HALF_SIZE):
               size=(half_size, half_size, 0.35), pos=(0, 0, -0.35),
               material=mats["soil"], friction=(1, 0.005, 0.0001),
               conaffinity=0)
+
+    # Paper-thin, non-colliding patches enrich the substrate without changing
+    # the perfectly stable walking/contact surface beneath them.
+    for i, (pos, size, mat, yaw) in enumerate((
+            ((-13, 7, .012), (10, 6, .012), "soil_light", .24),
+            ((12, -13, .011), (8, 5, .011), "soil_dark", -.37),
+            ((18, 13, .010), (6, 8, .010), "soil_light", .52))):
+        world.add("geom", name=f"decor_substrate_patch_{i}", type="ellipsoid",
+                  pos=pos, size=size, euler=(0, 0, yaw), material=mats[mat],
+                  contype=0, conaffinity=0)
 
     # Thin glass panels and a dark laboratory frame define the finite volume.
     wall_h, glass_t = 10.0, 0.18
@@ -59,6 +71,9 @@ def add_terrarium_shell(root, half_size=TERRARIUM_HALF_SIZE):
         ("moss_a", "cylinder", (-14, -20, .06), (4.0, .06), "moss", (0, 0, 0)),
         ("moss_b", "cylinder", (14, 22, .05), (3.2, .05), "moss", (0, 0, 0)),
         ("leaf_a", "ellipsoid", (17, -10, .12), (4.0, 1.7, .10), "leaf", (0, 0, -.45)),
+        ("leaf_b", "ellipsoid", (-7, 19, .10), (3.2, 1.3, .08), "leaf", (0, 0, .72)),
+        ("pebble_c", "ellipsoid", (7, 13, .42), (1.2, .9, .42), "stone", (0, 0, .2)),
+        ("pebble_d", "ellipsoid", (-4, -16, .32), (.8, 1.1, .32), "stone", (0, 0, -.4)),
     )
     for name, kind, pos, size, material, euler in props:
         world.add("geom", name=f"decor_{name}", type=kind, pos=pos,

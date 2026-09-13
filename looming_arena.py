@@ -130,6 +130,17 @@ class LoomingArena(BaseArena):
                 size=(ball_radius * .75, ball_radius * .12, ball_radius * .42),
                 pos=(0, side * ball_radius * .75, ball_radius * .15),
                 euler=(0, -.25, side * .35), rgba=(.12, .10, .15, .82))
+        # Eight splayed legs make the looming stimulus read as a stylized
+        # spider rather than an unexplained floating sphere.
+        for side in (-1, 1):
+            for j, x in enumerate((-3.2, -1.0, 1.2, 3.3)):
+                y0 = side * ball_radius * .42
+                y1 = side * ball_radius * (1.45 + .12 * (j % 2))
+                self.object_body.add(
+                    "geom", name=f"looming_predator_leg_{side}_{j}",
+                    type="capsule", size=(ball_radius * .10,),
+                    fromto=(x, y0, -.1, x + (j-1.5)*.35, y1, -ball_radius*.35),
+                    material=ball_mat, conaffinity=0, contype=0)
         # ── Taste zones: crystal sugar and a contaminated dark-red patch ──
         _TASTE_LABELS = {'sugar': 'Sugar', 'bitter': 'Poison'}
         if taste_zones:
@@ -149,21 +160,20 @@ class LoomingArena(BaseArena):
                 body = self.root_element.worldbody.add(
                     "body", name=f"taste_object_{i}", mocap=True,
                     pos=(zone.center[0], zone.center[1], 0.0))
-                body.add(
-                    "geom", name=f"taste_zone_{i}_{zone.taste}",
-                    type="cylinder", size=(zone.radius, .07),
-                    pos=(0, 0, .071), material=mat,
-                    conaffinity=0, contype=0)
                 if zone.taste == 'sugar':
-                    for j, (x, y, s) in enumerate(((-.7, 0, .55),
-                                                   (.55, .35, .45),
-                                                   (.25, -.65, .38))):
+                    for j, (x, y, s) in enumerate(((-.9, 0, .75),
+                                                   (.65, .45, .62),
+                                                   (.3, -.8, .52),
+                                                   (1.1, -.45, .38))):
                         body.add(
                             "geom", name=f"sugar_crystal_{i}_{j}", type="box",
                             size=(s, s, s), pos=(x, y, s),
                             euler=(.2, .35, .2*j), material=mat,
                             conaffinity=0, contype=0)
                 else:
+                    body.add("geom", name=f"poison_puddle_{i}", type="ellipsoid",
+                             size=(2.8, 2.0, .16), pos=(0, 0, .16), material=mat,
+                             conaffinity=0, contype=0)
                     for j, (x, y, s) in enumerate(((-.8, .5, .45),
                                                    (.7, -.3, .55),
                                                    (0, -.8, .32))):
@@ -207,23 +217,34 @@ class LoomingArena(BaseArena):
                     "body", name=f"odor_object_{i}", mocap=True,
                     pos=src.position.tolist())
                 if src.odor_type == 'attractive':
+                    # A huge apple morsel at fly scale, with pale cut flesh,
+                    # red peel and a leaf; its silhouette works without text.
                     body.add(
                         "geom", name=f"odor_source_{i}_fruit", type="ellipsoid",
-                        size=(1.8, 1.5, 1.35), pos=(0, 0, 1.2),
+                        size=(3.4, 2.4, 1.8), pos=(0, 0, 1.65),
                         material=mat_core, conaffinity=0, contype=0)
+                    body.add("geom", name=f"fruit_flesh_{i}", type="ellipsoid",
+                             size=(2.9, 2.05, 1.5), pos=(-.25, 0, 1.8),
+                             rgba=(.94, .72, .34, 1), conaffinity=0, contype=0)
                     body.add(
                         "geom", name=f"fruit_leaf_{i}", type="ellipsoid",
                         size=(.9, .35, .10), pos=(.45, 0, 2.55),
                         euler=(0, .35, .2), rgba=(.16, .42, .08, 1),
                         conaffinity=0, contype=0)
                 else:
-                    for j, (x, y, s) in enumerate(((0, 0, 1.25),
-                                                   (-.9, .5, .9),
-                                                   (.85, .45, .72))):
-                        body.add(
-                            "geom", name=f"danger_clump_{i}_{j}", type="sphere",
-                            size=(s,), pos=(x, y, s), material=mat_core,
-                            conaffinity=0, contype=0)
+                    # Stoppered laboratory vial with dark contents and a small
+                    # fungus cluster communicates an aversive source.
+                    body.add("geom", name=f"danger_vial_{i}", type="cylinder",
+                             size=(1.25, 2.0), pos=(0, 0, 2.0), material=mat_core,
+                             conaffinity=0, contype=0)
+                    body.add("geom", name=f"danger_stopper_{i}", type="cylinder",
+                             size=(.8, .35), pos=(0, 0, 4.25),
+                             rgba=(.25, .14, .07, 1), conaffinity=0, contype=0)
+                    for j, (x, y, s) in enumerate(((-1.2, .6, .55),
+                                                   (1.0, .5, .42))):
+                        body.add("geom", name=f"danger_clump_{i}_{j}", type="sphere",
+                                 size=(s,), pos=(x, y, s), material=mat_core,
+                                 conaffinity=0, contype=0)
                     body.add(
                         "geom", name=f"danger_spike_{i}", type="capsule",
                         size=(.35, 1.2), pos=(0, 0, 2.35), material=mat_core,
@@ -268,9 +289,6 @@ class LoomingArena(BaseArena):
         self.selection_body.add(
             "geom", name="selection_ring", type="cylinder",
             size=(3.5, .035), material=marker_mat, contype=0, conaffinity=0)
-        self.selection_body.add(
-            "site", name="Selected", pos=(0, 0, 5), size=(.10,),
-            rgba=(1, .72, .18, 1), group=4)
         self._selected_position = self.ball_pos
 
     def enable_interactive(self):

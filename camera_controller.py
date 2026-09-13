@@ -4,12 +4,12 @@ import mujoco
 
 
 class CameraController:
-    MODES = ("CLOSE FOLLOW", "WIDE FOLLOW", "FREE", "TOP-DOWN")
+    MODES = ("CLOSE FOLLOW", "WIDE FOLLOW", "TERRARIUM OVERVIEW", "FREE")
 
     def __init__(self, viewer, body_id):
         self.viewer = viewer
         self.body_id = body_id
-        self.mode_index = 0 if body_id >= 0 else 2
+        self.mode_index = 2 if body_id >= 0 else 3
         self.reset()
         self.keep_terrarium_visuals_clean()
 
@@ -19,15 +19,15 @@ class CameraController:
 
     def reset(self, follow=None):
         if follow is not None:
-            self.mode_index = 0 if follow else 2
+            self.mode_index = 0 if follow else 3
         cam = self.viewer.cam
-        tracking = self.mode_index in (0, 1, 3)
+        tracking = self.mode_index in (0, 1)
         cam.type = (mujoco.mjtCamera.mjCAMERA_TRACKING if tracking
                     else mujoco.mjtCamera.mjCAMERA_FREE)
         if self.body_id >= 0:
             cam.trackbodyid = self.body_id
         settings = ((12.5, -125, -24), (32.0, -125, -32),
-                    (45.0, -125, -28), (48.0, -90, -89))
+                    (72.0, -128, -38), (45.0, -125, -28))
         cam.distance, cam.azimuth, cam.elevation = settings[self.mode_index]
 
     def follow(self):
