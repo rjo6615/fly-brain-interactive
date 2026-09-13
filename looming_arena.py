@@ -51,6 +51,7 @@ class LoomingArena(BaseArena):
         self.ball_pos = self.ball_start.copy()
         self._initial_positions = [self.ball_start.copy()]
         self._passed = False
+        self._controls_added = False
 
         # Approach direction (toward origin, horizontal)
         direction = -self.ball_start.copy()
@@ -248,6 +249,30 @@ class LoomingArena(BaseArena):
                 )
                 src._arena_body = body
                 self._initial_positions.append(src.position.copy())
+
+    def enable_interactive(self):
+        """Enable manual control and add its legend to the 3-D simulation."""
+        self.interactive = True
+        if self._controls_added:
+            return
+        # Site labels are rendered by MuJoCo itself (site group 4), avoiding
+        # private GLFW hooks and keeping the instructions in the terrarium.
+        lines = (
+            "NUMPAD_CONTROLS",
+            "0_SELECT__4_6_8_2_MOVE__7_9_HEIGHT",
+            "5_POKE__ENTER_PAUSE__PLUS_MINUS_SPEED",
+            "1_FOLLOW__3_CAMERA__DOT_RESET__SLASH_HELP",
+        )
+        for row, label in enumerate(lines):
+            self.root_element.worldbody.add(
+                "site",
+                name=label,
+                pos=(-12, 10, 12 - row * 1.5),
+                size=(0.12,),
+                rgba=(0.1, 0.9, 1.0, 1.0),
+                group=4,
+            )
+        self._controls_added = True
 
     def get_spawn_position(self, rel_pos, rel_angle):
         return rel_pos, rel_angle
