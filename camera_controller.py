@@ -9,6 +9,7 @@ class CameraController:
         self.body_id = body_id
         self.following = False
         self.reset(follow=body_id >= 0)
+        self.keep_terrarium_visuals_clean()
 
     def reset(self, follow=None):
         if follow is not None:
@@ -29,8 +30,22 @@ class CameraController:
     def toggle(self):
         self.following = not self.following
         self.reset()
+        self.keep_terrarium_visuals_clean()
 
     def zoom(self, direction):
         self.viewer.cam.distance = max(
             3.0, min(300.0, self.viewer.cam.distance * (0.85 ** direction)))
 
+    def keep_terrarium_visuals_clean(self):
+        """Undo MuJoCo's built-in ``C`` contact-force visualization toggle.
+
+        The passive viewer handles its own shortcuts in addition to invoking
+        our key callback.  MuJoCo assigns ``C`` to contact-force rendering,
+        which can draw a huge yellow force cylinder over this millimetre-scale
+        animal.  Terrarium mode assigns ``C`` to the requested camera toggle,
+        so contact diagnostics must remain disabled after the native handler
+        sees that same event.
+        """
+        flags = self.viewer.opt.flags
+        flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE] = False
+        flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = False

@@ -335,6 +335,10 @@ free/follow camera, `R` resets the camera, and the mouse wheel zooms. `Space`
 pauses, `[`/`]` changes real-time playback speed, `T` restores object
 positions, `H` toggles help, and backtick toggles neural/debug details.
 
+MuJoCo also reserves `C` for contact-force visualization. Terrarium mode
+explicitly keeps that diagnostic disabled after handling `C`, preventing the
+viewer's force arrow from appearing as a large yellow cylinder over the fly.
+
 In terrarium mode, looming, touch, taste, and odor are injected at their
 sensory neuron populations. Legacy bridge-level chemical steering and
 aversive fallbacks are disabled; no terrarium input directly chooses a motor

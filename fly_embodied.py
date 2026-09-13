@@ -615,6 +615,8 @@ def main():
             # passive viewer remains responsive.
             if (terrarium_ref[0] is not None and terrarium_ref[0].paused):
                 if viewer is not None:
+                    if camera is not None:
+                        camera.keep_terrarium_visuals_clean()
                     viewer.sync()
                     _time.sleep(0.02)
                 continue
@@ -908,6 +910,11 @@ def main():
                 _sleep = _next_viewer_sync - _now
                 if _sleep > 0.001:
                     _time.sleep(_sleep)
+                if camera is not None:
+                    # The native MuJoCo viewer also binds C to contact-force
+                    # visualization.  Keep that diagnostic off because C is
+                    # the terrarium free/follow camera binding.
+                    camera.keep_terrarium_visuals_clean()
                 viewer.sync()
                 # Prevent accumulated time debt when falling behind
                 speed = terrarium_ref[0].speed if terrarium_ref[0] else 1.0
