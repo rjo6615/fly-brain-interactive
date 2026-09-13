@@ -9,10 +9,10 @@ class InteractionController:
     This class must never be called directly from the native viewer thread.
     """
 
-    HELP = (
-        "NUMPAD 0 select | 4/6/8/2 move | 7/9 down/up | 5 poke | "
-        "Enter pause | +/- speed | 1 follow | 3 free/follow | . reset | / help"
-    )
+    HELP = ("H or KP / help | L labels | Tab HUD | F or KP 1 follow | "
+            "C or KP 3 camera | Space or KP Enter pause | KP 0 select | "
+            "KP 4/6/8/2 move | KP 7/9 height | KP 5 poke | "
+            "KP +/- speed | Backspace or KP . reset")
 
     # Keep every terrarium action on the numeric keypad.  Unlike Alt-letter
     # and function-key chords, these do not collide with Windows shortcuts or
@@ -33,6 +33,13 @@ class InteractionController:
     KEY_SLOWER = 333       # GLFW_KEY_KP_SUBTRACT
     KEY_FASTER = 334       # GLFW_KEY_KP_ADD
     KEY_PAUSE = 335        # GLFW_KEY_KP_ENTER
+    KEY_SPACE = 32
+    KEY_TAB = 258
+    KEY_BACKSPACE = 259
+    KEY_H = ord('H')
+    KEY_L = ord('L')
+    KEY_F = ord('F')
+    KEY_C = ord('C')
 
     def __init__(self, terrarium, camera=None):
         self.terrarium = terrarium
@@ -55,12 +62,16 @@ class InteractionController:
                  self.KEY_LOWER: (0, 0, -1), self.KEY_RAISE: (0, 0, 1)}
         if keycode == self.KEY_SELECT:
             self.terrarium.select_next()
-        elif keycode == self.KEY_PAUSE:
+        elif keycode in (self.KEY_PAUSE, self.KEY_SPACE):
             self.terrarium.paused = not self.terrarium.paused
-        elif keycode == self.KEY_HELP:
+        elif keycode in (self.KEY_HELP, self.KEY_H):
             self.terrarium.show_help = not self.terrarium.show_help
+        elif keycode == self.KEY_L:
+            self.terrarium.show_labels = not self.terrarium.show_labels
             if self.camera:
-                self.camera.viewer.opt.sitegroup[4] = self.terrarium.show_help
+                self.camera.viewer.opt.sitegroup[3] = self.terrarium.show_labels
+        elif keycode == self.KEY_TAB:
+            self.terrarium.show_hud = not self.terrarium.show_hud
         elif keycode == self.KEY_DEBUG:
             self.terrarium.show_debug = not self.terrarium.show_debug
         elif keycode in moves:
@@ -71,14 +82,14 @@ class InteractionController:
             self.terrarium.slower()
         elif keycode == self.KEY_FASTER:
             self.terrarium.faster()
-        elif keycode == self.KEY_RESET:
+        elif keycode in (self.KEY_RESET, self.KEY_BACKSPACE):
             self.terrarium.reset()
             if self.camera:
                 self.camera.reset()
-        elif keycode == self.KEY_FOLLOW and self.camera:
+        elif keycode in (self.KEY_FOLLOW, self.KEY_F) and self.camera:
             self.camera.follow()
-        elif keycode == self.KEY_CAMERA and self.camera:
-            self.camera.toggle()
+        elif keycode in (self.KEY_CAMERA, self.KEY_C) and self.camera:
+            self.camera.cycle()
         else:
             return False
         self.update_window_title()

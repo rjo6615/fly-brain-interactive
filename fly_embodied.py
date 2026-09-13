@@ -49,7 +49,7 @@ from flight import FlightSystem, FlightState
 from terrarium_controller import TerrariumController
 from interaction_controller import InteractionController
 from camera_controller import CameraController
-from terrarium_hud import monitor_fields
+from terrarium_hud import TerrariumHUD, monitor_fields
 
 try:
     from consciousness import ConsciousnessDetector
@@ -502,6 +502,7 @@ def main():
     # ── Launch MuJoCo viewer (clean, no UI panels) ──
     viewer = None
     camera = None
+    terrarium_hud = None
     if not args.no_viewer:
         print("Launching MuJoCo viewer...")
         viewer = mujoco.viewer.launch_passive(
@@ -516,6 +517,7 @@ def main():
             # Hide fly's default sites (groups 0-2), show only arena labels (group 4)
             for g in range(3):
                 viewer.opt.sitegroup[g] = 0
+            viewer.opt.sitegroup[3] = 0
             viewer.opt.sitegroup[4] = 1
         if viewer is not None and thorax_body_id >= 0 and args.terrarium:
             camera = CameraController(viewer, thorax_body_id)
@@ -534,6 +536,8 @@ def main():
         terrarium_ref[0] = TerrariumController(
             arena_kwargs['arena'], taste_zones, odor_sources)
         interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
+        if viewer is not None:
+            terrarium_hud = TerrariumHUD(viewer, terrarium_ref[0], camera)
 
     # ── Set initial stimulus ──
     if brain is not None:
@@ -930,6 +934,8 @@ def main():
                     # visualization.  Keep that diagnostic off because C is
                     # the terrarium free/follow camera binding.
                     camera.keep_terrarium_visuals_clean()
+                if terrarium_hud is not None:
+                    terrarium_hud.draw()
                 viewer.sync()
                 # Prevent accumulated time debt when falling behind
                 speed = terrarium_ref[0].speed if terrarium_ref[0] else 1.0
@@ -1120,6 +1126,21 @@ def main():
                         mon_data['ball_x'] = float(ball_pos[0])
                 if consciousness is not None:
                     mon_data.update(consciousness.get_monitor_data())
+                if terrarium_hud is not None:
+                    # Values are direct readings already computed by each
+                    # sensory subsystem; absent systems remain explicitly 0.
+                    mon_data['vision'] = max(
+                        mon_data.get('lplc2_left', 0.0),
+                        mon_data.get('lplc2_right', 0.0))
+                    mon_data['smell'] = max(
+                        mon_data.get('or_attractive', 0.0),
+                        mon_data.get('or_repulsive', 0.0))
+                    mon_data['taste'] = max(
+                        mon_data.get('sugar_level', 0.0),
+                        mon_data.get('bitter_level', 0.0))
+                    mon_data['touch'] = mon_data.get('jo_contact', 0.0)
+                    mon_data['looming'] = mon_data.get('gf', 0.0)
+                    terrarium_hud.update(mon_data)
                 monitor.send(mon_data)
 
     except KeyboardInterrupt:

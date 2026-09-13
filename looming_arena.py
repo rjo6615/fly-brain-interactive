@@ -8,6 +8,7 @@ passes the fly, it disappears, letting the GF response decay naturally.
 
 import numpy as np
 from flygym.arena import BaseArena
+from terrarium_visuals import add_terrarium_shell, TERRARIUM_HALF_SIZE
 
 
 class LoomingArena(BaseArena):
@@ -64,22 +65,22 @@ class LoomingArena(BaseArena):
         # VISUAL ENVIRONMENT
         # ══════════════════════════════════════════════════════
 
-        # ── Skybox (blue gradient) ──
+        # ── Neutral observation-room background ──
         self.root_element.asset.add(
             "texture",
             type="skybox",
             builtin="gradient",
-            rgb1=(0.35, 0.55, 0.8),   # sky blue
-            rgb2=(0.85, 0.9, 1.0),    # pale horizon
+            rgb1=(0.12, 0.15, 0.16),
+            rgb2=(0.48, 0.52, 0.50),
             width=512,
             height=512,
         )
 
         # ── Headlight (warm ambient + directional) ──
         headlight = self.root_element.visual.headlight
-        headlight.ambient = (0.35, 0.35, 0.4)
-        headlight.diffuse = (0.7, 0.7, 0.65)
-        headlight.specular = (0.3, 0.3, 0.3)
+        headlight.ambient = (0.42, 0.42, 0.40)
+        headlight.diffuse = (0.62, 0.60, 0.56)
+        headlight.specular = (0.12, 0.12, 0.12)
 
         # ── Sunlight (directional, warm) ──
         self.root_element.worldbody.add(
@@ -87,46 +88,21 @@ class LoomingArena(BaseArena):
             name="sun",
             pos=(0, 0, 200),
             dir=(0.4, 0.3, -1.0),
-            diffuse=(1.0, 0.95, 0.85),
-            specular=(0.5, 0.5, 0.4),
+            diffuse=(0.82, 0.80, 0.72),
+            specular=(0.18, 0.18, 0.16),
             castshadow=True,
             directional=True,
         )
 
-        # ── Ground plane (natural earth tones) ──
-        ground_tex = self.root_element.asset.add(
-            "texture",
-            type="2d",
-            builtin="checker",
-            width=512,
-            height=512,
-            rgb1=(0.28, 0.38, 0.2),   # dark green-brown
-            rgb2=(0.35, 0.42, 0.25),  # slightly lighter green
-        )
-        ground_mat = self.root_element.asset.add(
-            "material",
-            name="ground_mat",
-            texture=ground_tex,
-            texrepeat=(30, 30),
-            reflectance=0.05,
-            rgba=(1.0, 1.0, 1.0, 1.0),
-        )
-        self.root_element.worldbody.add(
-            "geom",
-            type="plane",
-            name="ground",
-            material=ground_mat,
-            size=[self.ground_size, self.ground_size, 1],
-            friction=(1, 0.005, 0.0001),
-            conaffinity=0,
-        )
+        self._terrarium_mats = add_terrarium_shell(
+            self.root_element, TERRARIUM_HALF_SIZE)
         self.friction = (1, 0.005, 0.0001)
 
         # ── Looming sphere (dark, menacing, slightly reflective) ──
         ball_mat = self.root_element.asset.add(
             "material",
             name="threat_ball",
-            rgba=(0.05, 0.05, 0.08, 1.0),
+            rgba=(0.035, 0.025, 0.045, 1.0),
             reflectance=0.15,
             specular=0.5,
             shininess=0.8,
@@ -145,12 +121,12 @@ class LoomingArena(BaseArena):
             size=(ball_radius,),
             material=ball_mat,
         )
-        # ── Taste zones (glowing floor patches + labels) ──
-        _TASTE_LABELS = {'sugar': 'AZUCAR', 'bitter': 'VENENO'}
+        # ── Taste zones: crystal sugar and a contaminated dark-red patch ──
+        _TASTE_LABELS = {'sugar': 'Sugar', 'bitter': 'Poison'}
         if taste_zones:
             _TASTE_COLORS = {
-                'sugar':  (0.15, 0.75, 0.15, 0.5),
-                'bitter': (0.75, 0.12, 0.12, 0.5),
+                'sugar':  (0.92, 0.86, 0.62, 0.92),
+                'bitter': (0.38, 0.055, 0.045, 0.90),
             }
             for i, zone in enumerate(taste_zones):
                 rgba = _TASTE_COLORS.get(zone.taste, (0.5, 0.5, 0.5, 0.4))
@@ -159,7 +135,7 @@ class LoomingArena(BaseArena):
                     name=f"taste_mat_{i}",
                     rgba=rgba,
                     reflectance=0.15,
-                    emission=0.3,
+                    emission=0.05,
                 )
                 body = self.root_element.worldbody.add(
                     "body", name=f"taste_object_{i}", mocap=True,
@@ -168,8 +144,8 @@ class LoomingArena(BaseArena):
                     "geom",
                     name=f"taste_zone_{i}_{zone.taste}",
                     type="cylinder",
-                    size=(zone.radius, 0.02),
-                    pos=(0, 0, 0.021),
+                    size=(zone.radius, 0.08),
+                    pos=(0, 0, 0.081),
                     material=mat,
                     conaffinity=0,
                     contype=0,
@@ -179,20 +155,19 @@ class LoomingArena(BaseArena):
                 body.add(
                     "site",
                     name=label,
-                    pos=(0, 0, 4.0),
-                    size=(0.5,),
+                    pos=(0, 0, 2.0), size=(0.12,),
                     rgba=rgba[:3] + (1.0,),
-                    group=4,
+                    group=3,
                 )
                 zone._arena_body = body
                 self._initial_positions.append(zone.center.copy())
 
-        # ── Odor sources (glowing spheres with halos + labels) ──
-        _ODOR_LABELS = {'attractive': 'COMIDA', 'repulsive': 'PELIGRO'}
+        # ── Odor sources: fruit morsel and distinctive warning source ──
+        _ODOR_LABELS = {'attractive': 'Food', 'repulsive': 'Danger'}
         if odor_sources:
             _ODOR_COLORS = {
-                'attractive': (0.2, 0.85, 0.3, 0.7),   # green glow
-                'repulsive':  (0.85, 0.2, 0.85, 0.7),   # purple glow
+                'attractive': (0.82, 0.30, 0.08, 1.0),
+                'repulsive':  (0.48, 0.10, 0.42, 1.0),
             }
             for i, src in enumerate(odor_sources):
                 rgba = _ODOR_COLORS.get(
@@ -203,7 +178,7 @@ class LoomingArena(BaseArena):
                     name=f"odor_core_{i}",
                     rgba=rgba,
                     reflectance=0.3,
-                    emission=0.5,
+                    emission=0.05,
                     shininess=0.9,
                 )
                 body = self.root_element.worldbody.add(
@@ -213,7 +188,7 @@ class LoomingArena(BaseArena):
                     "geom",
                     name=f"odor_source_{i}_{src.odor_type}",
                     type="sphere",
-                    size=(1.2,),
+                    size=(1.7,),
                     pos=(0, 0, 0.5),
                     material=mat_core,
                     conaffinity=0,
@@ -231,7 +206,7 @@ class LoomingArena(BaseArena):
                     "geom",
                     name=f"odor_halo_{i}_{src.odor_type}",
                     type="sphere",
-                    size=(3.0,),
+                    size=(2.5,),
                     pos=(0, 0, 0.5),
                     material=mat_halo,
                     conaffinity=0,
@@ -242,37 +217,36 @@ class LoomingArena(BaseArena):
                 body.add(
                     "site",
                     name=label,
-                    pos=(0, 0, 5.0),
-                    size=(0.5,),
+                    pos=(0, 0, 3.0), size=(0.12,),
                     rgba=rgba[:3] + (1.0,),
-                    group=4,
+                    group=3,
                 )
                 src._arena_body = body
                 self._initial_positions.append(src.position.copy())
 
+        # Selection feedback is independent of stimulus color and collision.
+        marker_mat = self.root_element.asset.add(
+            "material", name="selection_brass", rgba=(1, .72, .18, .85),
+            emission=.12)
+        self.selection_body = self.root_element.worldbody.add(
+            "body", name="selection_marker", mocap=True,
+            pos=self.ball_pos.tolist(), gravcomp=1)
+        self.selection_body.add(
+            "geom", name="selection_ring", type="cylinder",
+            size=(3.5, .035), material=marker_mat, contype=0, conaffinity=0)
+        self.selection_body.add(
+            "site", name="Selected", pos=(0, 0, 5), size=(.10,),
+            rgba=(1, .72, .18, 1), group=4)
+        self._selected_position = self.ball_pos
+
     def enable_interactive(self):
-        """Enable manual control and add its legend to the 3-D simulation."""
+        """Enable manual control; screen-space help replaces world-space text."""
         self.interactive = True
-        if self._controls_added:
-            return
-        # Site labels are rendered by MuJoCo itself (site group 4), avoiding
-        # private GLFW hooks and keeping the instructions in the terrarium.
-        lines = (
-            "NUMPAD_CONTROLS",
-            "0_SELECT__4_6_8_2_MOVE__7_9_HEIGHT",
-            "5_POKE__ENTER_PAUSE__PLUS_MINUS_SPEED",
-            "1_FOLLOW__3_CAMERA__DOT_RESET__SLASH_HELP",
-        )
-        for row, label in enumerate(lines):
-            self.root_element.worldbody.add(
-                "site",
-                name=label,
-                pos=(-12, 10, 12 - row * 1.5),
-                size=(0.12,),
-                rgba=(0.1, 0.9, 1.0, 1.0),
-                group=4,
-            )
         self._controls_added = True
+
+    def set_selected_position(self, position):
+        self._selected_position = position
+        self.sync_interactive_objects()
 
     def get_spawn_position(self, rel_pos, rel_angle):
         return rel_pos, rel_angle
@@ -306,6 +280,9 @@ class LoomingArena(BaseArena):
                 zone.center[0], zone.center[1], 0.0)
         for src in self._odor_sources:
             self._physics.bind(src._arena_body).mocap_pos = src.position
+        selected = np.asarray(self._selected_position)
+        self._physics.bind(self.selection_body).mocap_pos = (
+            selected[0], selected[1], 0.09)
 
     def reset_interactive_objects(self):
         """Restore the authored positions without resetting neural state."""

@@ -318,7 +318,7 @@ dW_ij = eta * (r_i * r_j) - alpha * W_ij
 | **Gustation** | ~200 GRNs | GRN→SEZ→MN | Tarsal sugar/bitter |
 | **Mechanosensation** | JO + leg sensors | Mechanoreceptor→IN→MN | Vibration + proprioception |
 
-## Interactive terrarium (v1)
+## Interactive terrarium
 
 The opt-in terrarium lets the experimenter manipulate the world while the
 connectome remains in control of the animal:
@@ -327,17 +327,19 @@ connectome remains in control of the animal:
 python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
 ```
 
-The controls live entirely on the numeric keypad so they do not trigger
-Windows, desktop, or MuJoCo letter/function-key shortcuts. Numpad `0` selects
+Numpad `0` selects
 the predator, sugar, poison, food, or danger source; `4`/`6`/`8`/`2` moves it
 horizontally; and `7`/`9` lowers or raises a 3-D source. Numpad `5` injects a
 transient JO touch pulse, `Enter` pauses,
-`-`/`+` changes playback speed, `1` follows the fly, `3` toggles free/follow,
-`.` resets the objects and camera, and `/` toggles help.
+`-`/`+` changes playback speed, `1` follows the fly, `3` cycles camera modes,
+`.` resets the objects and camera, and `/` toggles help. The matching viewport
+shortcuts are `Space` (pause), `F` (follow), `C` (camera), `Backspace` (reset),
+`H` (help), `L` (labels), and `Tab` (HUD). The viewer's mouse wheel retains its
+native zoom behavior.
 
-The control legend is rendered as labeled sites inside the **Fly Terrarium
-simulation**, where the controls actually apply. It is intentionally not
-displayed on the brain monitor. Input uses MuJoCo's supported passive-viewer
+Controls, current selection, camera mode, sensory readings, and selected DN
+activity use compact screen-edge panels. Object labels are off by default; a
+small brass ring marks the selected object. Input uses MuJoCo's supported passive-viewer
 key callback; it does not replace the viewer's private GLFW callback.
 The callback queues commands for the simulation thread, so pressing a control
 never modifies the arena or camera from MuJoCo's native viewer thread.
