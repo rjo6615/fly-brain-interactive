@@ -330,16 +330,15 @@ python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --som
 The controls live entirely on the numeric keypad so they do not trigger
 Windows, desktop, or MuJoCo letter/function-key shortcuts. Numpad `0` selects
 the predator, sugar, poison, food, or danger source; `4`/`6`/`8`/`2` moves it
-horizontally; and `7`/`9` lowers or raises a 3-D source. Hold `Shift` for a
-larger step. Numpad `5` injects a transient JO touch pulse, `Enter` pauses,
+horizontally; and `7`/`9` lowers or raises a 3-D source. Numpad `5` injects a
+transient JO touch pulse, `Enter` pauses,
 `-`/`+` changes playback speed, `1` follows the fly, `3` toggles free/follow,
 `.` resets the objects and camera, and `/` toggles help.
 
-The compact control reminder, selected object, pause state, and speed are
-shown in the **Fly Terrarium simulation window title**, where the controls
-actually apply. They are intentionally not displayed on the brain monitor.
-Unhandled keys and the mouse remain available to MuJoCo's native camera and
-visualization controls.
+The control legend is rendered as labeled sites inside the **Fly Terrarium
+simulation**, where the controls actually apply. It is intentionally not
+displayed on the brain monitor. Input uses MuJoCo's supported passive-viewer
+key callback; it does not replace the viewer's private GLFW callback.
 
 In terrarium mode, looming, touch, taste, and odor are injected at their
 sensory neuron populations. Legacy bridge-level chemical steering and
