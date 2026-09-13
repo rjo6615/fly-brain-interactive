@@ -11,18 +11,29 @@ class InteractionController:
     """
 
     HELP = (
-        "F9 select | Alt+WASD move | Alt+Q/E lower/raise | Shift faster\n"
-        "Ctrl+left click or Alt+P poke | Alt+F follow | Alt+C free/follow\n"
-        "Alt+R camera reset | Alt+T objects reset | wheel native zoom\n"
-        "F10 pause | Alt+- slower | Alt+= faster | F11 help | F12 debug"
+        "NUMPAD 0 select | 4/6/8/2 move | 7/9 down/up | 5 poke | Shift fast | "
+        "Enter pause | +/- speed | 1 follow | 3 free/follow | . reset | / help"
     )
 
-    # F9-F12 are unused by MuJoCo's simulator UI. Letter, number, Tab,
-    # Space, bracket, and F1-F8 keys all have native viewer meanings.
-    KEY_SELECT = 298
-    KEY_PAUSE = 299
-    KEY_HELP = 300
-    KEY_DEBUG = 301
+    # Keep every terrarium action on the numeric keypad.  Unlike Alt-letter
+    # and function-key chords, these do not collide with Windows shortcuts or
+    # MuJoCo's normal letter, camera, and visualization bindings.
+    KEY_SELECT = 320       # GLFW_KEY_KP_0
+    KEY_FOLLOW = 321       # GLFW_KEY_KP_1
+    KEY_DOWN = 322         # GLFW_KEY_KP_2
+    KEY_CAMERA = 323       # GLFW_KEY_KP_3
+    KEY_LEFT = 324         # GLFW_KEY_KP_4
+    KEY_POKE = 325         # GLFW_KEY_KP_5
+    KEY_RIGHT = 326        # GLFW_KEY_KP_6
+    KEY_LOWER = 327        # GLFW_KEY_KP_7
+    KEY_UP = 328           # GLFW_KEY_KP_8
+    KEY_RAISE = 329        # GLFW_KEY_KP_9
+    KEY_RESET = 330        # GLFW_KEY_KP_DECIMAL
+    KEY_HELP = 331         # GLFW_KEY_KP_DIVIDE
+    KEY_DEBUG = 332        # GLFW_KEY_KP_MULTIPLY
+    KEY_SLOWER = 333       # GLFW_KEY_KP_SUBTRACT
+    KEY_FASTER = 334       # GLFW_KEY_KP_ADD
+    KEY_PAUSE = 335        # GLFW_KEY_KP_ENTER
 
     def __init__(self, terrarium, camera=None):
         self.terrarium = terrarium
@@ -31,7 +42,7 @@ class InteractionController:
         self._owns_keyboard_callback = False
 
     def on_key(self, keycode, fast=False, alt=None):
-        if self._window is not None and (not fast or alt is None):
+        if self._window is not None and not fast:
             try:
                 import glfw
                 if not fast:
@@ -39,18 +50,11 @@ class InteractionController:
                             glfw.PRESS or
                             glfw.get_key(self._window, glfw.KEY_RIGHT_SHIFT) ==
                             glfw.PRESS)
-                if alt is None:
-                    alt = (glfw.get_key(self._window, glfw.KEY_LEFT_ALT) ==
-                           glfw.PRESS or
-                           glfw.get_key(self._window, glfw.KEY_RIGHT_ALT) ==
-                           glfw.PRESS)
             except ImportError:
                 pass
-        alt = bool(alt)
-        key = chr(keycode).upper() if 0 <= keycode < 256 else ""
-        moves = {"W": (0, 1, 0), "S": (0, -1, 0),
-                 "A": (-1, 0, 0), "D": (1, 0, 0),
-                 "Q": (0, 0, -1), "E": (0, 0, 1)}
+        moves = {self.KEY_UP: (0, 1, 0), self.KEY_DOWN: (0, -1, 0),
+                 self.KEY_LEFT: (-1, 0, 0), self.KEY_RIGHT: (1, 0, 0),
+                 self.KEY_LOWER: (0, 0, -1), self.KEY_RAISE: (0, 0, 1)}
         if keycode == self.KEY_SELECT:
             self.terrarium.select_next()
         elif keycode == self.KEY_PAUSE:
@@ -59,70 +63,72 @@ class InteractionController:
             self.terrarium.show_help = not self.terrarium.show_help
         elif keycode == self.KEY_DEBUG:
             self.terrarium.show_debug = not self.terrarium.show_debug
-        elif not alt:
-            return False
-        elif key in moves:
-            self.terrarium.move_selected(*moves[key], fast=fast)
-        elif key == "P":
+        elif keycode in moves:
+            self.terrarium.move_selected(*moves[keycode], fast=fast)
+        elif keycode == self.KEY_POKE:
             self.terrarium.queue_poke()
-        elif key == "-":
+        elif keycode == self.KEY_SLOWER:
             self.terrarium.slower()
-        elif key in ("=", "+"):
+        elif keycode == self.KEY_FASTER:
             self.terrarium.faster()
-        elif key == "T":
+        elif keycode == self.KEY_RESET:
             self.terrarium.reset()
-        elif key == "F" and self.camera:
+            if self.camera:
+                self.camera.reset()
+        elif keycode == self.KEY_FOLLOW and self.camera:
             self.camera.follow()
-        elif key == "C" and self.camera:
+        elif keycode == self.KEY_CAMERA and self.camera:
             self.camera.toggle()
-        elif key == "R" and self.camera:
-            self.camera.reset()
         else:
             return False
+        self.update_window_title()
         return True
 
+    def update_window_title(self):
+        """Put the control reminder on the window that receives the keys."""
+        if self._window is None:
+            return
+        try:
+            import glfw
+            state = "PAUSED" if self.terrarium.paused else f"{self.terrarium.speed:g}x"
+            status = (f"Fly Terrarium | [{self.terrarium.selected_name}] | "
+                      f"{state} | NUMPAD / controls")
+            if self.terrarium.show_help:
+                status = (f"Fly Terrarium | NUMPAD 0 select "
+                          f"[{self.terrarium.selected_name}] | 4 6 8 2 move | "
+                          f"7 9 height | 5 poke | Enter pause ({state}) | "
+                          f"+ - speed | / hide")
+            glfw.set_window_title(self._window, status)
+        except (AttributeError, ImportError):
+            pass
+
     def attach_mouse(self, viewer):
-        """Best-effort mouse hooks; safely leaves unsupported viewers alone."""
+        """Best-effort viewer hook; safely leaves unsupported viewers alone."""
         try:
             import glfw
             window = viewer._window
             self._window = window
             previous_key = glfw.set_key_callback(window, None)
-            previous_button = glfw.set_mouse_button_callback(window, None)
-            previous_scroll = glfw.set_scroll_callback(window, None)
 
-            # launch_passive's public callback exposes only the key code. This
-            # chained GLFW adapter preserves MuJoCo's handler and gives us the
-            # modifier mask needed to distinguish Alt+terrarium commands.
+            # The chained GLFW adapter preserves MuJoCo's native handler for
+            # every key not owned by the terrarium.
             self._owns_keyboard_callback = True
 
             def key_callback(win, key, scancode, action, mods):
-                if previous_key:
-                    previous_key(win, key, scancode, action, mods)
+                handled = False
                 if action == glfw.PRESS:
-                    self.on_key(
+                    handled = self.on_key(
                         key,
                         fast=bool(mods & glfw.MOD_SHIFT),
-                        alt=bool(mods & glfw.MOD_ALT),
                     )
-
-            def button_callback(win, button, action, mods):
-                is_poke = (button == glfw.MOUSE_BUTTON_LEFT and
-                           action == glfw.PRESS and mods & glfw.MOD_CONTROL)
-                if is_poke:
-                    x, _ = glfw.get_cursor_pos(win)
-                    width, _ = glfw.get_window_size(win)
-                    self.terrarium.queue_poke("left" if x < width / 2 else "right")
-                elif previous_button:
-                    previous_button(win, button, action, mods)
-
-            def scroll_callback(win, xoffset, yoffset):
-                if previous_scroll:
-                    previous_scroll(win, xoffset, yoffset)
+                # Do not also send terrarium keys to MuJoCo.  This ordering is
+                # important: forwarding first caused native viewer actions to
+                # fire even when the terrarium handled the key.
+                if not handled and previous_key:
+                    previous_key(win, key, scancode, action, mods)
 
             glfw.set_key_callback(window, key_callback)
-            glfw.set_mouse_button_callback(window, button_callback)
-            glfw.set_scroll_callback(window, scroll_callback)
+            self.update_window_title()
             return True
         except (AttributeError, ImportError):
             return False
