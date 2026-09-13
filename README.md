@@ -318,6 +318,39 @@ dW_ij = eta * (r_i * r_j) - alpha * W_ij
 | **Gustation** | ~200 GRNs | GRN→SEZ→MN | Tarsal sugar/bitter |
 | **Mechanosensation** | JO + leg sensors | Mechanoreceptor→IN→MN | Vibration + proprioception |
 
+## Interactive terrarium (v1)
+
+The opt-in terrarium lets the experimenter manipulate the world while the
+connectome remains in control of the animal:
+
+```bash
+python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
+```
+
+`F9` selects the predator, sugar, poison, food, or danger source.
+`Alt`+`WASD` moves it horizontally; `Alt`+`Q`/`E` moves a 3-D source down/up;
+hold `Shift` for a larger step. `Ctrl`+left-click injects a lateralized,
+transient JO touch pulse (`Alt`+`P` is the reliable keyboard fallback).
+`Alt`+`F` follows the fly, `Alt`+`C` toggles the free/follow camera,
+`Alt`+`R` resets the camera, and MuJoCo's normal mouse wheel zoom remains in
+control. `F10` pauses, `Alt`+`-`/`=` changes real-time playback speed,
+`Alt`+`T` restores object positions, `F11` toggles help, and `F12` toggles
+neural/debug details.
+
+Terrarium mode opens the brain monitor automatically and keeps a compact
+control reminder on screen. `F11` expands or hides the complete control list.
+
+MuJoCo reserves unmodified letters, numbers, `Tab`, `Space`, brackets, and
+`F1`-`F8` for viewer operations. Terrarium actions therefore use `Alt` chords
+and the unused `F9`-`F12` range. It also keeps contact diagnostics disabled
+after handling `Alt`+`C`, preventing the
+viewer's force arrow from appearing as a large yellow cylinder over the fly.
+
+In terrarium mode, looming, touch, taste, and odor are injected at their
+sensory neuron populations. Legacy bridge-level chemical steering and
+aversive fallbacks are disabled; no terrarium input directly chooses a motor
+behavior. The original command and non-visual/headless paths are unchanged.
+
 ## Neural Integration Metrics
 
 Four proxy metrics computed every 500 ms (see paper Section 2.5 for mathematical definitions):

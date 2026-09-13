@@ -1043,6 +1043,17 @@ class BrainRenderer:
         t_txt = self.font.render(f't={t_sim:.3f}s', True, COL_HUD)
         self.screen.blit(t_txt, (self.WIDTH - t_txt.get_width() - 10, 10))
 
+        # Keep a compact control reminder visible even when the expanded help
+        # panel is hidden. This is intentionally in the monitor window because
+        # MuJoCo's passive-viewer API has no application text-overlay surface.
+        if 'terrarium_selected' in d:
+            selected = d.get('terrarium_selected', '?')
+            paused = ' PAUSED' if d.get('terrarium_paused', False) else ''
+            quick = (f"F9 SELECT [{selected}] | ALT+WASD MOVE | F10 PAUSE"
+                     f"{paused} | F11 HELP")
+            self.screen.blit(self.font_sm.render(quick, True, COL_HUD),
+                             (10, 36))
+
         # Thin separator with gradient feel
         for i in range(self.WIDTH):
             brightness = int(40 * (1.0 - abs(i - self.WIDTH / 2) /
@@ -1065,7 +1076,8 @@ class BrainRenderer:
         # Mode
         mode = d.get('mode', 'walking')
         mode_color = MODE_COLORS.get(mode, COL_HUD)
-        mode_txt = self.font.render(f'MODE: {mode.upper()}', True,
+        behavior = d.get('behavior', mode.upper())
+        mode_txt = self.font.render(f'BEHAVIOR: {behavior}', True,
                                     mode_color)
         self.screen.blit(mode_txt, (10, y_bot))
 
@@ -1113,6 +1125,37 @@ class BrainRenderer:
             ball_txt = self.font_sm.render(
                 f'BALL:{ball_x:.0f}mm', True, (70, 80, 120))
             self.screen.blit(ball_txt, (self.WIDTH - 90, y_bot + 2))
+
+        # Terrarium help/debug is rendered here (rather than fabricated as
+        # MuJoCo neural values) because this process already owns the live HUD.
+        help_text = d.get('terrarium_help', '')
+        if help_text:
+            lines = ['TERRARIUM CONTROLS'] + help_text.splitlines()
+            panel = pg.Surface((760, 100), pg.SRCALPHA)
+            panel.fill((3, 8, 20, 225))
+            pg.draw.rect(panel, COL_HUD, panel.get_rect(), 1)
+            for row, line in enumerate(lines):
+                color = COL_TITLE if row == 0 else COL_HUD
+                panel.blit(self.font_sm.render(line, True, color),
+                           (10, 7 + row * 18))
+            self.screen.blit(panel, (20, 38))
+
+        if d.get('terrarium_debug', False):
+            pos = d.get('fly_pos', [0, 0, 0])
+            debug_lines = [
+                f"SELECTED={d.get('terrarium_selected', '?')}  "
+                f"SPEED={d.get('terrarium_speed', 1):g}x  "
+                f"PAUSED={d.get('terrarium_paused', False)}",
+                f"FLY=[{pos[0]:.1f},{pos[1]:.1f},{pos[2]:.1f}]  "
+                f"PREDATOR={d.get('predator_distance', 0):.1f}mm",
+                (f"P9={d.get('p9', 0):.2f} DNa01={d.get('dna01', 0):.2f} "
+                 f"DNa02={d.get('dna02', 0):.2f} MDN={d.get('mdn', 0):.2f} "
+                 f"GF={d.get('gf', 0):.2f} aDN1={d.get('adn1', 0):.2f} "
+                 f"MN9={d.get('mn9', 0):.2f}"),
+            ]
+            for row, line in enumerate(debug_lines):
+                txt = self.font_sm.render(line, True, COL_TITLE)
+                self.screen.blit(txt, (12, 38 + row * 15))
 
     # ── Sidebar ───────────────────────────────────────────────────────────
 
