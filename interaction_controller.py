@@ -1,4 +1,4 @@
-"""Key-command adapter for terrarium interaction."""
+"""Non-positional key-command adapter for terrarium interaction."""
 
 
 class InteractionController:
@@ -9,14 +9,15 @@ class InteractionController:
     This class must never be called directly from the native viewer thread.
     """
 
-    HELP = ("H or KP / help | L labels | Tab HUD | F or KP 1 follow | "
+    HELP = ("Left-drag objects | drag+wheel height | right-click deselect | "
+            "H or KP / help | L labels | Tab HUD | F or KP 1 follow | "
             "C or KP 3 camera | Space or KP Enter pause | KP 0 select | "
-            "KP 4/6/8/2 move | KP 7/9 height | KP 5 poke | "
+            "KP 5 poke | "
             "KP +/- speed | Backspace or KP . reset")
 
-    # Keep every terrarium action on the numeric keypad.  Unlike Alt-letter
-    # and function-key chords, these do not collide with Windows shortcuts or
-    # MuJoCo's normal letter, camera, and visualization bindings.
+    # Keep remaining terrarium key actions on the numeric keypad. Unlike
+    # Alt-letter and function-key chords, these do not collide with Windows
+    # shortcuts or MuJoCo's normal letter, camera, and visualization bindings.
     KEY_SELECT = 320       # GLFW_KEY_KP_0
     KEY_FOLLOW = 321       # GLFW_KEY_KP_1
     KEY_DOWN = 322         # GLFW_KEY_KP_2
@@ -57,9 +58,6 @@ class InteractionController:
         return None
 
     def on_key(self, keycode, fast=False):
-        moves = {self.KEY_UP: (0, 1, 0), self.KEY_DOWN: (0, -1, 0),
-                 self.KEY_LEFT: (-1, 0, 0), self.KEY_RIGHT: (1, 0, 0),
-                 self.KEY_LOWER: (0, 0, -1), self.KEY_RAISE: (0, 0, 1)}
         if keycode == self.KEY_SELECT:
             self.terrarium.select_next()
         elif keycode in (self.KEY_PAUSE, self.KEY_SPACE):
@@ -74,8 +72,6 @@ class InteractionController:
             self.terrarium.show_hud = not self.terrarium.show_hud
         elif keycode == self.KEY_DEBUG:
             self.terrarium.show_debug = not self.terrarium.show_debug
-        elif keycode in moves:
-            self.terrarium.move_selected(*moves[keycode], fast=fast)
         elif keycode == self.KEY_POKE:
             self.terrarium.queue_poke()
         elif keycode == self.KEY_SLOWER:

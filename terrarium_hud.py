@@ -52,13 +52,14 @@ class TerrariumHUD:
         add(mujoco.mjtGridPos.mjGRID_BOTTOMLEFT, "SENSORY INPUT",
             "\n".join(f"{name:<9} {float(val or 0):.2f}"
                       for name, val in sensory))
-        controls = ("KP 4/6  left/right\nKP 8/2  forward/back\n"
-                    "KP 7/9  lower/raise\nKP 5  poke  |  KP 0  select")
+        controls = ("Left-drag  move on floor\nWheel while dragging  height\n"
+                    "Right-click  deselect")
         if c.selection_notice_visible:
             controls = f"SELECTED: {c.selected_name}\n\n" + controls
         add(mujoco.mjtGridPos.mjGRID_BOTTOMRIGHT, "OBJECT CONTROL", controls)
         if c.show_help:
-            help_text = ("OBJECTS\nKP 0 select   KP 4/6/8/2 move   KP 7/9 height   KP +/- speed\n\n"
+            help_text = ("OBJECTS\nLeft-click select   left-drag move   drag+wheel height\n"
+                         "Right-click or empty click deselect\n\n"
                          "INTERACTION\nKP 5 poke\n\nCAMERA\nF follow   C cycle   mouse wheel zoom/orbit\n\n"
                          "SIMULATION\nSpace pause   Backspace reset\n\nUI\nH help   L labels   Tab HUD")
             add(mujoco.mjtGridPos.mjGRID_TOPLEFT, "CONTROL REFERENCE", help_text)
