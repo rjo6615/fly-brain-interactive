@@ -18,6 +18,8 @@ class MouseInteraction:
         self.events = queue.SimpleQueue()
         self.dragging = False
         self._pending_left_pick = False
+        self._left_input_down = False
+        self._camera_left_active = False
         self._sim = self._viewer_impl(viewer)
         self.window = (getattr(self._sim, "_window", None) or
                        getattr(viewer, "_window", None))
@@ -51,17 +53,21 @@ class MouseInteraction:
         self.events.put(("button", button, action, mods, x, y))
         if button == self.glfw.MOUSE_BUTTON_LEFT:
             self._pending_left_pick = action == self.glfw.PRESS
+            self._left_input_down = action == self.glfw.PRESS
         self._log(f"Mouse {'down' if action == self.glfw.PRESS else 'released'}: "
                   f"x={x:.1f}, y={y:.1f}")
-        # Preserve native button state. Cursor motion is suppressed only after
-        # a real object is selected, so empty-ground left drags still orbit.
-        if self._old_button is not None:
+        # A left press cannot be passed to MuJoCo before the simulation thread
+        # has picked it: doing so arms the native camera and makes an object
+        # drag orbit the view as well.  ``poll`` replays the gesture only when
+        # the press hit empty space.  Other buttons remain native.
+        if (button != self.glfw.MOUSE_BUTTON_LEFT and
+                self._old_button is not None):
             self._old_button(window, button, action, mods)
 
     def _cursor_pos(self, window, x, y):
-        if self.dragging:
+        if self.dragging or self._left_input_down or self._pending_left_pick:
             self.events.put(("move", x, y))
-        elif self._old_cursor is not None and not self._pending_left_pick:
+        elif self._old_cursor is not None:
             self._old_cursor(window, x, y)
 
     def _scroll(self, window, xoffset, yoffset):
@@ -134,7 +140,7 @@ class MouseInteraction:
             except queue.Empty:
                 return
             if event[0] == "button":
-                _, button, action, _, x, y = event
+                _, button, action, mods, x, y = event
                 if button == self.glfw.MOUSE_BUTTON_RIGHT and action == self.glfw.PRESS:
                     self.controller.select(None); self.dragging = False
                 elif button == self.glfw.MOUSE_BUTTON_LEFT:
@@ -143,14 +149,23 @@ class MouseInteraction:
                         self.controller.select(picked)
                         self.dragging = picked is not None
                         self._pending_left_pick = False
+                        self._camera_left_active = picked is None
+                        if self._camera_left_active and self._old_button:
+                            self._old_button(self.window, button, action, mods)
                         self._log(f"Selected: {self.controller.selected_name}")
                     else:
                         self.dragging = False
-            elif event[0] == "move" and self.dragging:
-                point = self.floor_point(event[1], event[2])
-                if point is not None:
-                    self.controller.place_selected(point[0], point[1])
-                    self._log(f"Dragging {self.controller.selected_name} to world "
-                              f"position: x={point[0]:.2f}, y={point[1]:.2f}, z={point[2]:.2f}")
+                        if self._camera_left_active and self._old_button:
+                            self._old_button(self.window, button, action, mods)
+                        self._camera_left_active = False
+            elif event[0] == "move":
+                if self.dragging:
+                    point = self.floor_point(event[1], event[2])
+                    if point is not None:
+                        self.controller.place_selected(point[0], point[1])
+                        self._log(f"Dragging {self.controller.selected_name} to world "
+                                  f"position: x={point[0]:.2f}, y={point[1]:.2f}, z={point[2]:.2f}")
+                elif self._camera_left_active and self._old_cursor:
+                    self._old_cursor(self.window, event[1], event[2])
             elif event[0] == "scroll" and self.controller.selected is not None:
                 self.controller.adjust_selected_height(event[1] * self.HEIGHT_PER_NOTCH)
