@@ -81,4 +81,5 @@ class InteractionController:
             self.camera.toggle()
         else:
             return False
+        self.update_window_title()
         return True
