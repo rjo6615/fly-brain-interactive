@@ -37,6 +37,10 @@ class LoomingArena(BaseArena):
         self.approach_angle = np.radians(approach_angle)
         self.ground_size = ground_size
         self.curr_time = 0.0
+        self.interactive = False
+        self._physics = None
+        self._taste_zones = list(taste_zones or [])
+        self._odor_sources = list(odor_sources or [])
 
         # Starting position
         self.ball_start = np.array([
@@ -45,6 +49,7 @@ class LoomingArena(BaseArena):
             ball_height,
         ])
         self.ball_pos = self.ball_start.copy()
+        self._initial_positions = [self.ball_start.copy()]
         self._passed = False
 
         # Approach direction (toward origin, horizontal)
@@ -155,26 +160,31 @@ class LoomingArena(BaseArena):
                     reflectance=0.15,
                     emission=0.3,
                 )
-                self.root_element.worldbody.add(
+                body = self.root_element.worldbody.add(
+                    "body", name=f"taste_object_{i}", mocap=True,
+                    pos=(zone.center[0], zone.center[1], 0.0))
+                body.add(
                     "geom",
                     name=f"taste_zone_{i}_{zone.taste}",
                     type="cylinder",
                     size=(zone.radius, 0.02),
-                    pos=(zone.center[0], zone.center[1], 0.021),
+                    pos=(0, 0, 0.021),
                     material=mat,
                     conaffinity=0,
                     contype=0,
                 )
                 # Floating label site above zone
                 label = _TASTE_LABELS.get(zone.taste, zone.taste.upper())
-                self.root_element.worldbody.add(
+                body.add(
                     "site",
                     name=label,
-                    pos=(zone.center[0], zone.center[1], 4.0),
+                    pos=(0, 0, 4.0),
                     size=(0.5,),
                     rgba=rgba[:3] + (1.0,),
                     group=4,
                 )
+                zone._arena_body = body
+                self._initial_positions.append(zone.center.copy())
 
         # ── Odor sources (glowing spheres with halos + labels) ──
         _ODOR_LABELS = {'attractive': 'COMIDA', 'repulsive': 'PELIGRO'}
@@ -195,12 +205,15 @@ class LoomingArena(BaseArena):
                     emission=0.5,
                     shininess=0.9,
                 )
-                self.root_element.worldbody.add(
+                body = self.root_element.worldbody.add(
+                    "body", name=f"odor_object_{i}", mocap=True,
+                    pos=src.position.tolist())
+                body.add(
                     "geom",
                     name=f"odor_source_{i}_{src.odor_type}",
                     type="sphere",
                     size=(1.2,),
-                    pos=(src.position[0], src.position[1], 1.5),
+                    pos=(0, 0, 0.5),
                     material=mat_core,
                     conaffinity=0,
                     contype=0,
@@ -213,26 +226,28 @@ class LoomingArena(BaseArena):
                     rgba=halo_rgba,
                     emission=0.8,
                 )
-                self.root_element.worldbody.add(
+                body.add(
                     "geom",
                     name=f"odor_halo_{i}_{src.odor_type}",
                     type="sphere",
                     size=(3.0,),
-                    pos=(src.position[0], src.position[1], 1.5),
+                    pos=(0, 0, 0.5),
                     material=mat_halo,
                     conaffinity=0,
                     contype=0,
                 )
                 # Floating label site above source
                 label = _ODOR_LABELS.get(src.odor_type, src.odor_type.upper())
-                self.root_element.worldbody.add(
+                body.add(
                     "site",
                     name=label,
-                    pos=(src.position[0], src.position[1], 6.0),
+                    pos=(0, 0, 5.0),
                     size=(0.5,),
                     rgba=rgba[:3] + (1.0,),
                     group=4,
                 )
+                src._arena_body = body
+                self._initial_positions.append(src.position.copy())
 
     def get_spawn_position(self, rel_pos, rel_angle):
         return rel_pos, rel_angle
@@ -242,7 +257,8 @@ class LoomingArena(BaseArena):
 
     def step(self, dt, physics, *args, **kwargs):
         """Move sphere toward fly; stop far behind after passing."""
-        if not self._passed:
+        self._physics = physics
+        if not self.interactive and not self._passed:
             self.ball_pos[:3] += self.approach_dir * self.approach_speed * dt
 
             behind = np.dot(self.ball_pos[:2], self.ball_start[:2])
@@ -252,4 +268,29 @@ class LoomingArena(BaseArena):
                 self.ball_pos = np.array([0.0, 0.0, -100.0])
 
         physics.bind(self.object_body).mocap_pos = self.ball_pos
+        self.sync_interactive_objects()
         self.curr_time += dt
+
+    def sync_interactive_objects(self):
+        """Copy shared sensory-source positions to their visual mocap bodies."""
+        if self._physics is None:
+            return
+        self._physics.bind(self.object_body).mocap_pos = self.ball_pos
+        for zone in self._taste_zones:
+            self._physics.bind(zone._arena_body).mocap_pos = (
+                zone.center[0], zone.center[1], 0.0)
+        for src in self._odor_sources:
+            self._physics.bind(src._arena_body).mocap_pos = src.position
+
+    def reset_interactive_objects(self):
+        """Restore the authored positions without resetting neural state."""
+        self.ball_pos[:] = self._initial_positions[0]
+        offset = 1
+        for zone in self._taste_zones:
+            zone.center[:] = self._initial_positions[offset]
+            offset += 1
+        for src in self._odor_sources:
+            src.position[:] = self._initial_positions[offset]
+            offset += 1
+        self._passed = False
+        self.sync_interactive_objects()

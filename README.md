@@ -318,6 +318,32 @@ dW_ij = eta * (r_i * r_j) - alpha * W_ij
 | **Gustation** | ~200 GRNs | GRN→SEZ→MN | Tarsal sugar/bitter |
 | **Mechanosensation** | JO + leg sensors | Mechanoreceptor→IN→MN | Vibration + proprioception |
 
+## Interactive terrarium (v1)
+
+The opt-in terrarium lets the experimenter manipulate the world while the
+connectome remains in control of the animal:
+
+```bash
+python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
+```
+
+`Tab` selects the predator, sugar, poison, food, or danger source. `WASD`
+moves it horizontally; `Q`/`E` moves a 3-D source down/up; hold `Shift` for a
+larger step. `Ctrl`+left-click injects a lateralized, transient JO touch pulse
+(`P` is the reliable keyboard fallback). `F` follows the fly, `C` toggles the
+free/follow camera, `R` resets the camera, and the mouse wheel zooms. `Space`
+pauses, `[`/`]` changes real-time playback speed, `T` restores object
+positions, `H` toggles help, and backtick toggles neural/debug details.
+
+MuJoCo also reserves `C` for contact-force visualization. Terrarium mode
+explicitly keeps that diagnostic disabled after handling `C`, preventing the
+viewer's force arrow from appearing as a large yellow cylinder over the fly.
+
+In terrarium mode, looming, touch, taste, and odor are injected at their
+sensory neuron populations. Legacy bridge-level chemical steering and
+aversive fallbacks are disabled; no terrarium input directly chooses a motor
+behavior. The original command and non-visual/headless paths are unchanged.
+
 ## Neural Integration Metrics
 
 Four proxy metrics computed every 500 ms (see paper Section 2.5 for mathematical definitions):
