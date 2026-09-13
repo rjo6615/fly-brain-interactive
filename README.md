@@ -339,6 +339,8 @@ The control legend is rendered as labeled sites inside the **Fly Terrarium
 simulation**, where the controls actually apply. It is intentionally not
 displayed on the brain monitor. Input uses MuJoCo's supported passive-viewer
 key callback; it does not replace the viewer's private GLFW callback.
+The callback queues commands for the simulation thread, so pressing a control
+never modifies the arena or camera from MuJoCo's native viewer thread.
 
 In terrarium mode, looming, touch, taste, and odor are injected at their
 sensory neuron populations. Legacy bridge-level chemical steering and

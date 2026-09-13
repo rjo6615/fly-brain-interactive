@@ -4,9 +4,9 @@
 class InteractionController:
     """Translate viewer events into world manipulation and sensory pokes.
 
-    MuJoCo's supported ``launch_passive`` key callback is the only input path
-    used here.  In particular, this class must not replace the viewer's private
-    GLFW callback: doing that is unsupported and can crash the native viewer.
+    Commands are dispatched on the simulation thread after MuJoCo's supported
+    ``launch_passive`` callback places their keycodes in a thread-safe queue.
+    This class must never be called directly from the native viewer thread.
     """
 
     HELP = (

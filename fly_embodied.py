@@ -25,6 +25,7 @@ Keys (in MuJoCo viewer window):
 
 import sys
 import argparse
+import queue
 import numpy as np
 import mujoco
 import mujoco.viewer
@@ -179,10 +180,14 @@ def main():
     GLFW_KEY_SPACE = 32
     terrarium_ref = [None]
     interaction_ref = [None]
+    # MuJoCo invokes key_callback from its viewer thread. Never mutate the
+    # controller, arena, camera, model, or data there; doing so races the main
+    # simulation thread and can terminate the native viewer (notably on KP 0).
+    terrarium_keys = queue.SimpleQueue()
 
     def key_callback(keycode):
         if args.terrarium and interaction_ref[0] is not None:
-            interaction_ref[0].on_key(keycode)
+            terrarium_keys.put(keycode)
             return
         if keycode == GLFW_KEY_SPACE:
             auto_demo_enabled[0] = not auto_demo_enabled[0]
@@ -603,6 +608,16 @@ def main():
     # ── Main loop ──
     try:
         while True:
+            # Apply viewer input on the simulation thread. SimpleQueue keeps
+            # the cross-thread callback itself limited to an atomic enqueue.
+            if interaction_ref[0] is not None:
+                while True:
+                    try:
+                        keycode = terrarium_keys.get_nowait()
+                    except queue.Empty:
+                        break
+                    interaction_ref[0].on_key(keycode)
+
             # Check exit conditions
             if viewer is not None:
                 if not viewer.is_running():
