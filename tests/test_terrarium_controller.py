@@ -49,6 +49,15 @@ class TerrariumControllerTests(unittest.TestCase):
         self.controller.move_selected(dx=1)
         np.testing.assert_allclose(self.sugar.center, [3, 2])
 
+    def test_mouse_style_selection_place_height_and_deselect(self):
+        self.controller.select(2)
+        self.controller.place_selected(99, -99)
+        self.controller.adjust_selected_height(1.5)
+        np.testing.assert_allclose(self.food.position, [30.5, -30.5, 2.5])
+        self.controller.select(None)
+        self.assertEqual(self.controller.selected_name, "NONE")
+        self.assertIsNone(self.arena.selected_position)
+
     def test_poke_is_lateralized_transient_and_summates(self):
         self.controller.queue_poke('left', 0.4)
         self.assertEqual(self.controller.consume_poke_rates(0.1, 200), (80, 0))
@@ -59,13 +68,13 @@ class TerrariumControllerTests(unittest.TestCase):
         self.controller.consume_poke_rates(0.1, 200)
         self.assertIsNone(self.controller.poke)
 
-    def test_keyboard_controls_world_not_fly(self):
+    def test_keyboard_object_nudging_remains_as_compatibility_fallback(self):
         interaction = InteractionController(self.controller)
         # Remains safe for users updating from the window-title implementation,
         # whose on_key method may still invoke this compatibility hook.
         self.assertIsNone(interaction.update_window_title())
         self.assertFalse(interaction.on_key(ord('W')))
-        interaction.on_key(interaction.KEY_UP)
+        self.assertTrue(interaction.on_key(interaction.KEY_UP))
         interaction.on_key(interaction.KEY_PAUSE)
         interaction.on_key(interaction.KEY_FASTER)
         self.assertEqual(self.arena.ball_pos[1], 2)

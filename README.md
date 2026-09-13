@@ -327,9 +327,9 @@ connectome remains in control of the animal:
 python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
 ```
 
-Numpad `0` selects
-the predator, sugar, poison, food, or danger source; `4`/`6`/`8`/`2` moves it
-horizontally; and `7`/`9` lowers or raises a 3-D source. Numpad `5` injects a
+Left-click an object to select it, left-drag it across the substrate, and use
+the wheel while dragging to change the height of 3-D sources. Clicking empty
+space or right-clicking deselects it. Numpad `5` injects a
 transient JO touch pulse, `Enter` pauses,
 `-`/`+` changes playback speed, `1` follows the fly, `3` cycles camera modes,
 `.` resets the objects and camera, and `/` toggles help. The matching viewport
@@ -339,15 +339,22 @@ native zoom behavior.
 
 Controls, current selection, camera mode, sensory readings, and selected DN
 activity use compact screen-edge panels. Object labels are off by default; a
-small brass ring marks the selected object. Input uses MuJoCo's supported passive-viewer
-key callback; it does not replace the viewer's private GLFW callback.
-The callback queues commands for the simulation thread, so pressing a control
-never modifies the arena or camera from MuJoCo's native viewer thread.
+small brass ring marks the selected object. The mouse adapter chains MuJoCo's
+native GLFW handlers for non-object camera gestures; both mouse
+and key callbacks only queue commands for the simulation thread.
+Because the public passive-viewer `Handle` in some MuJoCo builds (including
+some Windows wheels) does not expose its GLFW window, startup detects that
+capability instead of assuming the private `_window` attribute exists. In that
+case the simulation remains usable and reports the numpad selection/movement
+controls as a compatibility fallback.
 
 In terrarium mode, looming, touch, taste, and odor are injected at their
 sensory neuron populations. Legacy bridge-level chemical steering and
 aversive fallbacks are disabled; no terrarium input directly chooses a motor
-behavior. The original command and non-visual/headless paths are unchanged.
+behavior. Glass walls are physical colliders, and their actual contact forces
+are lateralized into JO touch populations. No scripted wall reversal or
+anti-stuck movement is applied. The original command and non-visual/headless
+paths are unchanged.
 
 ## Neural Integration Metrics
 

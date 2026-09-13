@@ -1,8 +1,8 @@
 """Low-cost MJCF presentation helpers for the interactive terrarium.
 
-Everything created here is visual-only except the substrate floor.  Decorative
-geoms have collision masks disabled and are not registered with any sensory
-system, keeping the closed-loop experiment unchanged.
+Natural details are visual-only, while the substrate and glass panels are
+physical. Wall contacts are consumed by the mechanosensory pathway; decorative
+geoms remain outside every sensory system.
 """
 
 TERRARIUM_HALF_SIZE = 32.0
@@ -38,7 +38,8 @@ def add_terrarium_shell(root, half_size=TERRARIUM_HALF_SIZE):
             ((half_size, 0, wall_h / 2), (glass_t, half_size, wall_h / 2)),
             ((-half_size, 0, wall_h / 2), (glass_t, half_size, wall_h / 2)))):
         world.add("geom", name=f"terrarium_glass_{i}", type="box", pos=pos,
-                  size=size, material=mats["glass"], contype=0, conaffinity=0)
+                  size=size, material=mats["glass"], contype=1, conaffinity=1,
+                  friction=(0.35, 0.005, 0.0001))
     for z in (0.35, wall_h):
         for i, (pos, size) in enumerate((
                 ((0, half_size, z), (half_size + .5, .35, .35)),
@@ -64,4 +65,3 @@ def add_terrarium_shell(root, half_size=TERRARIUM_HALF_SIZE):
                   size=size, euler=euler, material=mats[material],
                   contype=0, conaffinity=0)
     return mats
-

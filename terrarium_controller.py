@@ -22,6 +22,7 @@ class TerrariumController:
     """Own interactive selection, time controls, and transient pokes."""
 
     MOVE_STEP = 2.0
+    POSITION_LIMIT = 30.5
 
     def __init__(self, arena, taste_zones, odor_sources):
         self.arena = arena
@@ -41,6 +42,7 @@ class TerrariumController:
         self.show_hud = True
         self.show_labels = False
         self.show_debug = False
+        self.mouse_available = True
         self.poke = None
         self.selection_changed_at = time.monotonic()
         if hasattr(arena, "set_selected_position"):
@@ -48,25 +50,54 @@ class TerrariumController:
 
     @property
     def selected_name(self):
-        return self.objects[self.selected][0]
+        return self.objects[self.selected][0] if self.selected is not None else "NONE"
 
-    def select_next(self):
-        self.selected = (self.selected + 1) % len(self.objects)
+    @property
+    def selected_position(self):
+        return None if self.selected is None else self.objects[self.selected][1]
+
+    def select(self, index):
+        """Select an object by index, or deselect with ``None``."""
+        if index is not None and not 0 <= index < len(self.objects):
+            raise IndexError(index)
+        self.selected = index
         self.selection_changed_at = time.monotonic()
         if hasattr(self.arena, "set_selected_position"):
-            self.arena.set_selected_position(self.objects[self.selected][1])
+            self.arena.set_selected_position(self.selected_position)
+
+    def select_next(self):
+        self.select(0 if self.selected is None else
+                    (self.selected + 1) % len(self.objects))
 
     @property
     def selection_notice_visible(self):
         return time.monotonic() - self.selection_changed_at < 1.6
 
     def move_selected(self, dx=0.0, dy=0.0, dz=0.0, fast=False):
+        if self.selected is None:
+            return
         amount = self.MOVE_STEP * (4.0 if fast else 1.0)
         pos = self.objects[self.selected][1]
         pos[:2] += np.array([dx, dy]) * amount
         if len(pos) > 2:
             pos[2] = max(0.1, pos[2] + dz * amount)
         self.arena.sync_interactive_objects()
+
+    def place_selected(self, x, y, z=None):
+        """Move the shared visual/sensory position, never the fly."""
+        if self.selected is None:
+            return
+        pos = self.selected_position
+        pos[:2] = np.clip((x, y), -self.POSITION_LIMIT, self.POSITION_LIMIT)
+        if z is not None and len(pos) > 2:
+            pos[2] = max(0.1, z)
+        self.arena.sync_interactive_objects()
+
+    def adjust_selected_height(self, delta):
+        if self.selected is not None and len(self.selected_position) > 2:
+            self.selected_position[2] = max(
+                0.1, self.selected_position[2] + float(delta))
+            self.arena.sync_interactive_objects()
 
     def queue_poke(self, side="both", strength=0.65):
         # Repeated clicks summate, but remain a sensory rate rather than a
@@ -99,4 +130,4 @@ class TerrariumController:
         self.poke = None
         self.selection_changed_at = time.monotonic()
         if hasattr(self.arena, "set_selected_position"):
-            self.arena.set_selected_position(self.objects[self.selected][1])
+            self.arena.set_selected_position(self.selected_position)
