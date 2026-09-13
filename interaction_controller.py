@@ -38,6 +38,17 @@ class InteractionController:
         self.terrarium = terrarium
         self.camera = camera
 
+    def update_window_title(self):
+        """Compatibility no-op for checkouts containing the old call site.
+
+        Earlier terrarium revisions called this method after every command and
+        changed the GLFW window title.  The title mutation was removed, but a
+        partially updated checkout could retain the call while losing the
+        method, producing the AttributeError reported when KP 0 was pressed.
+        The controls now live in the 3-D scene, so there is nothing to update.
+        """
+        return None
+
     def on_key(self, keycode, fast=False):
         moves = {self.KEY_UP: (0, 1, 0), self.KEY_DOWN: (0, -1, 0),
                  self.KEY_LEFT: (-1, 0, 0), self.KEY_RIGHT: (1, 0, 0),

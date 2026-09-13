@@ -57,6 +57,9 @@ class TerrariumControllerTests(unittest.TestCase):
 
     def test_keyboard_controls_world_not_fly(self):
         interaction = InteractionController(self.controller)
+        # Remains safe for users updating from the window-title implementation,
+        # whose on_key method may still invoke this compatibility hook.
+        self.assertIsNone(interaction.update_window_title())
         self.assertFalse(interaction.on_key(ord('W')))
         interaction.on_key(interaction.KEY_UP)
         interaction.on_key(interaction.KEY_PAUSE)
