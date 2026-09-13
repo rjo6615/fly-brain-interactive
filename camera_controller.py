@@ -1,36 +1,47 @@
-"""Stable follow/free camera modes for the MuJoCo passive viewer."""
+"""Stable terrarium camera modes for the MuJoCo passive viewer."""
 
 import mujoco
 
 
 class CameraController:
+    MODES = ("CLOSE FOLLOW", "WIDE FOLLOW", "FREE", "TOP-DOWN")
+
     def __init__(self, viewer, body_id):
         self.viewer = viewer
         self.body_id = body_id
-        self.following = False
-        self.reset(follow=body_id >= 0)
+        self.mode_index = 0 if body_id >= 0 else 2
+        self.reset()
         self.keep_terrarium_visuals_clean()
+
+    @property
+    def mode_name(self):
+        return self.MODES[self.mode_index]
 
     def reset(self, follow=None):
         if follow is not None:
-            self.following = follow
+            self.mode_index = 0 if follow else 2
         cam = self.viewer.cam
-        cam.type = (mujoco.mjtCamera.mjCAMERA_TRACKING if self.following
+        tracking = self.mode_index in (0, 1, 3)
+        cam.type = (mujoco.mjtCamera.mjCAMERA_TRACKING if tracking
                     else mujoco.mjtCamera.mjCAMERA_FREE)
         if self.body_id >= 0:
             cam.trackbodyid = self.body_id
-        cam.distance = 18.0 if self.following else 55.0
-        cam.azimuth = -120.0
-        cam.elevation = -25.0
+        settings = ((12.5, -125, -24), (32.0, -125, -32),
+                    (45.0, -125, -28), (48.0, -90, -89))
+        cam.distance, cam.azimuth, cam.elevation = settings[self.mode_index]
 
     def follow(self):
-        self.following = True
+        self.mode_index = 0
         self.reset()
 
-    def toggle(self):
-        self.following = not self.following
+    def cycle(self):
+        self.mode_index = (self.mode_index + 1) % len(self.MODES)
         self.reset()
         self.keep_terrarium_visuals_clean()
+
+    def toggle(self):
+        """Backward-compatible alias for cycling the presentation modes."""
+        self.cycle()
 
     def zoom(self, direction):
         self.viewer.cam.distance = max(

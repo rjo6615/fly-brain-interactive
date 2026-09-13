@@ -26,6 +26,9 @@ class Arena:
     def reset_interactive_objects(self):
         self.reset_count += 1
 
+    def set_selected_position(self, position):
+        self.selected_position = position
+
 
 class TerrariumControllerTests(unittest.TestCase):
     def setUp(self):
@@ -42,6 +45,7 @@ class TerrariumControllerTests(unittest.TestCase):
 
     def test_selected_sources_share_sensory_position_arrays(self):
         self.controller.select_next()
+        self.assertIs(self.arena.selected_position, self.sugar.center)
         self.controller.move_selected(dx=1)
         np.testing.assert_allclose(self.sugar.center, [3, 2])
 
