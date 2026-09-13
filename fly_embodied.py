@@ -45,6 +45,10 @@ from gustatory import GustatorySystem, TasteZone
 from olfactory import OlfactorySystem, OdorSource
 from vocalization import WingSongSystem
 from flight import FlightSystem, FlightState
+from terrarium_controller import TerrariumController
+from interaction_controller import InteractionController
+from camera_controller import CameraController
+from terrarium_hud import monitor_fields
 
 try:
     from consciousness import ConsciousnessDetector
@@ -146,11 +150,14 @@ def main():
                              '(GF triggers takeoff, xfrc_applied on Thorax)')
     parser.add_argument('--consciousness', action='store_true',
                         help='Enable consciousness proxy measurement '
-                             '(Phi/IIT, GWT, Self-Model, Perturbation)')
+                        '(Phi/IIT, GWT, Self-Model, Perturbation)')
+    parser.add_argument('--terrarium', action='store_true',
+                        help='Enable interactive world, camera, pause and HUD controls')
     args = parser.parse_args()
 
     # -- State --
-    active_stimulus = [args.stimulus or 'p9']  # Default: P9 forward walking
+    active_stimulus = [args.stimulus if args.stimulus is not None else
+                       (None if args.terrarium else 'p9')]
     stim_changed = [True]
     auto_demo_enabled = [not args.no_auto and args.stimulus is None
                           and not args.visual]
@@ -170,8 +177,13 @@ def main():
         ord('0'): None,
     }
     GLFW_KEY_SPACE = 32
+    terrarium_ref = [None]
+    interaction_ref = [None]
 
     def key_callback(keycode):
+        if args.terrarium and interaction_ref[0] is not None:
+            interaction_ref[0].on_key(keycode)
+            return
         if keycode == GLFW_KEY_SPACE:
             auto_demo_enabled[0] = not auto_demo_enabled[0]
             state = "ON" if auto_demo_enabled[0] else "OFF"
@@ -330,6 +342,8 @@ def main():
         )
         angle_str = f" angle={args.approach_angle}°" if args.approach_angle != 0 else ""
         print(f"[Visual] LoomingArena: r=6mm sphere from {arena_start:.0f}mm at 15mm/s{angle_str}")
+        if args.terrarium:
+            arena_kwargs['arena'].interactive = True
 
     sim = HybridTurningController(
         fly=fly,
@@ -430,6 +444,12 @@ def main():
     # ── Find proboscis joint (added dynamically to Rostrum) ──
     model_ptr = sim.physics.model.ptr
     fly_name = fly.name
+    if thorax_body_id < 0:
+        for thorax_name in (f"{fly_name}/Thorax", "Thorax"):
+            thorax_body_id = mujoco.mj_name2id(
+                model_ptr, mujoco.mjtObj.mjOBJ_BODY, thorax_name)
+            if thorax_body_id >= 0:
+                break
     for jname_candidate in [f"{fly_name}/joint_Proboscis", "joint_Proboscis"]:
         proboscis_jnt_id = mujoco.mj_name2id(
             model_ptr, mujoco.mjtObj.mjOBJ_JOINT, jname_candidate)
@@ -476,6 +496,7 @@ def main():
 
     # ── Launch MuJoCo viewer (clean, no UI panels) ──
     viewer = None
+    camera = None
     if not args.no_viewer:
         print("Launching MuJoCo viewer...")
         viewer = mujoco.viewer.launch_passive(
@@ -491,12 +512,25 @@ def main():
             for g in range(3):
                 viewer.opt.sitegroup[g] = 0
             viewer.opt.sitegroup[4] = 1
-        if viewer is not None and thorax_body_id >= 0:
+        if viewer is not None and thorax_body_id >= 0 and args.terrarium:
+            camera = CameraController(viewer, thorax_body_id)
+        elif viewer is not None and thorax_body_id >= 0:
             viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
             viewer.cam.trackbodyid = thorax_body_id
             viewer.cam.distance = 40.0
             viewer.cam.azimuth = -120.0
             viewer.cam.elevation = -25.0
+
+    # Terrarium controls are available only with the visual arena. Keeping the
+    # feature opt-in preserves the original viewer and all headless paths.
+    if args.terrarium:
+        if not args.visual:
+            parser.error('--terrarium requires --visual')
+        terrarium_ref[0] = TerrariumController(
+            arena_kwargs['arena'], taste_zones, odor_sources)
+        interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
+        if viewer is not None and not interaction_ref[0].attach_mouse(viewer):
+            print('[Terrarium] Mouse hook unavailable; P remains available for poking')
 
     # ── Set initial stimulus ──
     if brain is not None:
@@ -548,6 +582,8 @@ def main():
         print("  *** VOCALIZATION ACTIVE: wing song -> JO self-hearing ***")
     if flight_sys is not None:
         print(f"  *** FLIGHT ACTIVE: GF > {flight_sys.takeoff_thresh} triggers virtual takeoff ***")
+    if args.terrarium:
+        print("  *** TERRARIUM ACTIVE: manipulate the world; the brain controls the fly ***")
     print("=" * 70)
     if auto_demo_enabled[0]:
         print("  MODE: Auto-demo (cycles through stimuli automatically)")
@@ -559,6 +595,8 @@ def main():
         print("  A dark sphere approaches — escape should emerge naturally!")
     print("  Keys: 1=sugar 2=P9 3=looming 4=grooming 5=bitter 6=olfactory")
     print("  0=off  SPACE=toggle auto  |  Close viewer to exit")
+    if args.terrarium:
+        print("  " + InteractionController.HELP.replace("\n", "\n  "))
     print("=" * 70)
     print()
 
@@ -572,6 +610,14 @@ def main():
             elif args.duration > 0:
                 if body_step * sim.timestep >= args.duration:
                     break
+
+            # Pausing stops simulation time and neural/physics updates, but the
+            # passive viewer remains responsive.
+            if (terrarium_ref[0] is not None and terrarium_ref[0].paused):
+                if viewer is not None:
+                    viewer.sync()
+                    _time.sleep(0.02)
+                continue
 
             # ── Auto-demo: advance sequence ──
             if auto_demo_enabled[0] and brain is not None:
@@ -650,6 +696,19 @@ def main():
                 contact_forces = obs.get('contact_forces', np.zeros((36, 3)))
                 somato.process_contact(contact_forces)
 
+                # Mouse/P pokes enter the same JO mechanosensory populations.
+                # No behavioral mode or motor action is selected here.
+                if terrarium_ref[0] is not None:
+                    poke_l, poke_r = terrarium_ref[0].consume_poke_rates(
+                        BRAIN_RATIO * sim.timestep, somato.TOUCH_MAX_RATE)
+                    somato.touch_rate_left = max(somato.touch_rate_left, poke_l)
+                    somato.touch_rate_right = max(somato.touch_rate_right, poke_r)
+                    somato.max_contact_force = max(
+                        somato.max_contact_force,
+                        somato.FORCE_FLOOR + max(poke_l, poke_r) /
+                        somato.TOUCH_MAX_RATE *
+                        (somato.FORCE_SAT - somato.FORCE_FLOOR))
+
                 # Sound: compute vibration from fly position and heading
                 fly_pos = obs['fly'][0]  # position in mm
                 fly_orient = obs.get('fly_orientation', np.zeros(3))
@@ -659,11 +718,17 @@ def main():
 
                 # Inject JO rates into brain
                 jo_idx, jo_rates = somato.get_rates()
+                if args.terrarium:
+                    all_jo_idx = np.concatenate([
+                        somato.touch_idx_left, somato.touch_idx_right,
+                        somato.sound_idx_left, somato.sound_idx_right])
+                    brain.clear_sensory_rates(all_jo_idx)
                 brain.set_sensory_rates(jo_idx, jo_rates)
 
                 # Update bridge with somatosensory state
                 bridge.tactile_force = somato.max_contact_force
-                bridge.sound_orientation_bias = somato.orientation_bias
+                bridge.sound_orientation_bias = (
+                    0.0 if args.terrarium else somato.orientation_bias)
 
             # ── Gustatory processing (every brain step) ──
             if gusto is not None and body_step % BRAIN_RATIO == 0:
@@ -672,10 +737,16 @@ def main():
 
                 # Inject GRN rates into brain
                 grn_idx, grn_rates = gusto.get_rates()
+                if args.terrarium:
+                    brain.clear_sensory_rates(np.concatenate([
+                        gusto.sugar_indices, gusto.bitter_indices]))
                 brain.set_sensory_rates(grn_idx, grn_rates)
 
                 # Update bridge with gustatory state
-                bridge.bitter_active = gusto.bitter_active
+                # Terrarium mode relies on GRN -> connectome -> DN activity;
+                # legacy mode retains its bridge-level aversion fallback.
+                bridge.bitter_active = (gusto.bitter_active and
+                                        not args.terrarium)
 
             # ── Olfactory processing (every brain step) ──
             if olfact is not None and body_step % BRAIN_RATIO == 0:
@@ -686,12 +757,21 @@ def main():
 
                 # Inject ORN rates into brain
                 or_idx, or_rates = olfact.get_rates()
+                if args.terrarium:
+                    brain.clear_sensory_rates(np.concatenate([
+                        olfact.att_idx_left, olfact.att_idx_right,
+                        olfact.rep_idx_left, olfact.rep_idx_right]))
                 brain.set_sensory_rates(or_idx, or_rates)
 
                 # Update bridge with olfactory state
-                bridge.olfactory_attraction_bias = olfact.attraction_bias
-                bridge.olfactory_repulsive = olfact.is_repulsive_escape
-                bridge.olfactory_repulsion_bias = olfact.repulsion_bias
+                if args.terrarium:
+                    bridge.olfactory_attraction_bias = 0.0
+                    bridge.olfactory_repulsive = False
+                    bridge.olfactory_repulsion_bias = 0.0
+                else:
+                    bridge.olfactory_attraction_bias = olfact.attraction_bias
+                    bridge.olfactory_repulsive = olfact.is_repulsive_escape
+                    bridge.olfactory_repulsion_bias = olfact.repulsion_bias
 
             # ── Wing song processing (every brain step, silent during flight) ──
             if wing_song is not None and body_step % BRAIN_RATIO == 0:
@@ -830,8 +910,9 @@ def main():
                     _time.sleep(_sleep)
                 viewer.sync()
                 # Prevent accumulated time debt when falling behind
+                speed = terrarium_ref[0].speed if terrarium_ref[0] else 1.0
                 _next_viewer_sync = max(
-                    _next_viewer_sync, _now) + _frame_target
+                    _next_viewer_sync, _now) + _frame_target / speed
                 # FPS measurement
                 _fps_counter += 1
                 if _now - _fps_timer >= 1.0:
@@ -938,6 +1019,13 @@ def main():
                     'dn_turn_R': d.get_group_rate('turn_R'),
                     'threat_asym': bridge.threat_asym,
                 }
+                if terrarium_ref[0] is not None:
+                    fly_pos_hud = obs['fly'][0]
+                    predator_distance = np.linalg.norm(
+                        arena_kwargs['arena'].ball_pos - fly_pos_hud)
+                    mon_data.update(monitor_fields(
+                        terrarium_ref[0], bridge, decoder, fly_pos_hud,
+                        predator_distance))
                 # Somatosensory data (when available)
                 if somato is not None:
                     mon_data['jo_contact'] = somato.touch_level
