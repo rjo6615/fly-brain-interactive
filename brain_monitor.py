@@ -1043,6 +1043,17 @@ class BrainRenderer:
         t_txt = self.font.render(f't={t_sim:.3f}s', True, COL_HUD)
         self.screen.blit(t_txt, (self.WIDTH - t_txt.get_width() - 10, 10))
 
+        # Keep a compact control reminder visible even when the expanded help
+        # panel is hidden. This is intentionally in the monitor window because
+        # MuJoCo's passive-viewer API has no application text-overlay surface.
+        if 'terrarium_selected' in d:
+            selected = d.get('terrarium_selected', '?')
+            paused = ' PAUSED' if d.get('terrarium_paused', False) else ''
+            quick = (f"F9 SELECT [{selected}] | ALT+WASD MOVE | F10 PAUSE"
+                     f"{paused} | F11 HELP")
+            self.screen.blit(self.font_sm.render(quick, True, COL_HUD),
+                             (10, 36))
+
         # Thin separator with gradient feel
         for i in range(self.WIDTH):
             brightness = int(40 * (1.0 - abs(i - self.WIDTH / 2) /
@@ -1120,7 +1131,7 @@ class BrainRenderer:
         help_text = d.get('terrarium_help', '')
         if help_text:
             lines = ['TERRARIUM CONTROLS'] + help_text.splitlines()
-            panel = pg.Surface((760, 82), pg.SRCALPHA)
+            panel = pg.Surface((760, 100), pg.SRCALPHA)
             panel.fill((3, 8, 20, 225))
             pg.draw.rect(panel, COL_HUD, panel.get_rect(), 1)
             for row, line in enumerate(lines):

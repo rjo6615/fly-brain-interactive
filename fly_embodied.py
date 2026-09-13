@@ -182,6 +182,10 @@ def main():
 
     def key_callback(keycode):
         if args.terrarium and interaction_ref[0] is not None:
+            # Once the chained GLFW callback is installed it supplies modifier
+            # state and calls the controller itself. Avoid handling it twice.
+            if interaction_ref[0]._owns_keyboard_callback:
+                return
             interaction_ref[0].on_key(keycode)
             return
         if keycode == GLFW_KEY_SPACE:
@@ -542,8 +546,10 @@ def main():
 
     # ── Launch brain monitor (separate process) ──
     monitor = None
-    if args.monitor:
-        print("Launching brain monitor...")
+    if args.monitor or args.terrarium:
+        print("Launching brain monitor" +
+              (" (terrarium controls are shown here)..."
+               if args.terrarium else "..."))
         monitor = BrainMonitorProcess()
         monitor.start()
 

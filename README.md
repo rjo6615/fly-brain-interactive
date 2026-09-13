@@ -327,16 +327,23 @@ connectome remains in control of the animal:
 python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
 ```
 
-`Tab` selects the predator, sugar, poison, food, or danger source. `WASD`
-moves it horizontally; `Q`/`E` moves a 3-D source down/up; hold `Shift` for a
-larger step. `Ctrl`+left-click injects a lateralized, transient JO touch pulse
-(`P` is the reliable keyboard fallback). `F` follows the fly, `C` toggles the
-free/follow camera, `R` resets the camera, and the mouse wheel zooms. `Space`
-pauses, `[`/`]` changes real-time playback speed, `T` restores object
-positions, `H` toggles help, and backtick toggles neural/debug details.
+`F9` selects the predator, sugar, poison, food, or danger source.
+`Alt`+`WASD` moves it horizontally; `Alt`+`Q`/`E` moves a 3-D source down/up;
+hold `Shift` for a larger step. `Ctrl`+left-click injects a lateralized,
+transient JO touch pulse (`Alt`+`P` is the reliable keyboard fallback).
+`Alt`+`F` follows the fly, `Alt`+`C` toggles the free/follow camera,
+`Alt`+`R` resets the camera, and MuJoCo's normal mouse wheel zoom remains in
+control. `F10` pauses, `Alt`+`-`/`=` changes real-time playback speed,
+`Alt`+`T` restores object positions, `F11` toggles help, and `F12` toggles
+neural/debug details.
 
-MuJoCo also reserves `C` for contact-force visualization. Terrarium mode
-explicitly keeps that diagnostic disabled after handling `C`, preventing the
+Terrarium mode opens the brain monitor automatically and keeps a compact
+control reminder on screen. `F11` expands or hides the complete control list.
+
+MuJoCo reserves unmodified letters, numbers, `Tab`, `Space`, brackets, and
+`F1`-`F8` for viewer operations. Terrarium actions therefore use `Alt` chords
+and the unused `F9`-`F12` range. It also keeps contact diagnostics disabled
+after handling `Alt`+`C`, preventing the
 viewer's force arrow from appearing as a large yellow cylinder over the fly.
 
 In terrarium mode, looming, touch, taste, and odor are injected at their
