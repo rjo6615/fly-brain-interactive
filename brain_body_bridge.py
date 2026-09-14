@@ -472,6 +472,28 @@ class BrainEngine:
         return {name: spk[0, idx].item()
                 for name, idx in self.dn_indices.items()}
 
+    def advance(self, decoder, steps=1, on_step=None):
+        """Advance several neural ticks and preserve every spike sample.
+
+        The embodied simulation samples sensors less often than the brain's
+        0.1 ms timestep.  Running a small batch here prevents the connectome
+        and rate decoder from effectively being slowed to the sensor polling
+        frequency.  In particular, a single sparse P9 spike can now propagate
+        through recurrent connections instead of disappearing between body
+        updates.
+        """
+        if steps < 1:
+            raise ValueError("steps must be at least one")
+        for _ in range(steps):
+            spikes = self.step()
+            decoder.update(
+                self.get_dn_spikes(),
+                self.get_population_spikes() if self.populations else None,
+            )
+            if on_step is not None:
+                on_step()
+        return spikes
+
     def register_population(self, name, tensor_indices):
         """Register a neuron population for aggregate spike monitoring."""
         self.populations[name] = tensor_indices
