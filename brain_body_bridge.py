@@ -611,6 +611,7 @@ class BrainBodyBridge:
                  escape_threshold=0.3, groom_threshold=0.02,
                  feeding_threshold=0.05,
                  escape_turn_gain=4.0,
+                 locomotor_gain=4.0,
                  tactile_escape_force=35.0,
                  sound_orientation_gain=0.3,
                  olfactory_attraction_gain=10.0):
@@ -619,6 +620,11 @@ class BrainBodyBridge:
         self.groom_threshold = groom_threshold
         self.feeding_threshold = feeding_threshold
         self.escape_turn_gain = escape_turn_gain
+        # ``forward`` is the mean of four P9/oDN1 channels, while the tonic
+        # P9 stimulus directly drives only the two P9 channels.  Convert that
+        # population mean back to the full-scale descending signal expected by
+        # HybridTurningController instead of feeding it a gait-stalling ~0.1.
+        self.locomotor_gain = locomotor_gain
         self.tactile_escape_force = tactile_escape_force
         self.sound_orientation_gain = sound_orientation_gain
         self.olfactory_attraction_gain = olfactory_attraction_gain
@@ -778,9 +784,11 @@ class BrainBodyBridge:
                               self.olfactory_attraction_gain)
             effective_turn = turn + sound_turn + olfactory_turn
             self.left_drive = np.clip(
-                forward * (1.0 + effective_turn) - backward, -0.5, 1.5)
+                self.locomotor_gain *
+                (forward * (1.0 + effective_turn) - backward), -0.5, 1.5)
             self.right_drive = np.clip(
-                forward * (1.0 - effective_turn) - backward, -0.5, 1.5)
+                self.locomotor_gain *
+                (forward * (1.0 - effective_turn) - backward), -0.5, 1.5)
 
         return np.array([self.left_drive, self.right_drive])
 
