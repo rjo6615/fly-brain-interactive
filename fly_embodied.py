@@ -598,7 +598,12 @@ def main():
 
     # ── Timing constants ──
     MONITOR_INTERVAL = 500   # send data every 500 body steps (~50ms sim)
-    BRAIN_RATIO = 100        # 1 brain step per 100 body steps (10Hz neural update)
+    BRAIN_RATIO = 100        # poll sensors every 100 body steps (10 ms)
+    # A neural tick is 0.1 ms.  Advancing only once per sensor poll made the
+    # brain run at 1% speed: input neurons almost never fired, recurrent
+    # activity could not propagate, and the fly appeared inert.  Ten ticks is
+    # a responsive real-time compromise for the 15M-synapse model.
+    BRAIN_SUBSTEPS = 10
     VISION_RATIO = 1000     # process vision every 1000 body steps (= 100ms, 10Hz)
     STEPS_PER_FRAME = 167    # body steps per viewer frame (~60fps at 1e-4 timestep)
     STATUS_INTERVAL = 10000  # status print every 1.0s sim time
@@ -889,14 +894,13 @@ def main():
                     BRAIN_RATIO * sim.timestep)
                 bridge.flight_active = flight_sys.is_airborne
 
-            # ── Brain step (1 per BRAIN_RATIO body steps) ──
+            # ── Brain batch (preserve the model's 0.1 ms neural timestep) ──
             if brain is not None and body_step % BRAIN_RATIO == 0:
-                brain.step()
-                dn_spikes = brain.get_dn_spikes()
-                pop_spikes = brain.get_population_spikes() if brain.populations else None
-                decoder.update(dn_spikes, pop_spikes)
+                on_neural_step = None
                 if consciousness is not None:
-                    consciousness.update(body_step, bridge.mode)
+                    def on_neural_step():
+                        consciousness.update(body_step, bridge.mode)
+                brain.advance(decoder, BRAIN_SUBSTEPS, on_neural_step)
 
             # ── Per-eye T2 fallback for directional escape ──
             if visual is not None and cached_visual[0] is not None:
