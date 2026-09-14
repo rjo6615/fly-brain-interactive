@@ -641,6 +641,10 @@ class BrainBodyBridge:
 
         # Gustatory state (set externally by fly_embodied)
         self.bitter_active = False  # True when legs on bitter zone
+        # Sensory context only: unlike bitter_active, this does not bypass the
+        # connectome to select escape mode.  It tells an escape already caused
+        # by bitter GRN -> GF activity not to reuse an unrelated visual bias.
+        self.bitter_contact = False
 
         # Olfactory state (set externally by fly_embodied)
         self.olfactory_attraction_bias = 0.0  # +1=turn right, -1=turn left
@@ -741,7 +745,8 @@ class BrainBodyBridge:
         if self.mode == 'escape':
             if olfactory_escape and gf <= self.escape_threshold:
                 self.threat_asym = self.olfactory_repulsion_bias
-            elif tactile_escape and gf <= self.escape_threshold:
+            elif (tactile_escape and gf <= self.escape_threshold
+                  or self.bitter_contact):
                 self.threat_asym = 0.0
             else:
                 lplc2_L = d.get_pop_rate('LPLC2_left')
