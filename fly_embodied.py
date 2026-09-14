@@ -851,6 +851,7 @@ def main():
                 # Update bridge with gustatory state
                 # Terrarium mode relies on GRN -> connectome -> DN activity;
                 # legacy mode retains its bridge-level aversion fallback.
+                bridge.bitter_contact = gusto.bitter_active
                 bridge.bitter_active = (gusto.bitter_active and
                                         not args.terrarium)
 
