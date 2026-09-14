@@ -115,10 +115,14 @@ class MouseInteraction:
             self.viewer.cam, mujoco.mjtCatBit.mjCAT_ALL, self.pick_scene)
         selected = np.zeros(3, dtype=np.float64)
         geom = np.array([-1], dtype=np.int32)
+        # Current MuJoCo bindings require a writable output array for every
+        # selectable object type, even though this application only uses the
+        # returned geom and body IDs.
+        flex = np.array([-1], dtype=np.int32)
         skin = np.array([-1], dtype=np.int32)
         body = mujoco.mjv_select(
             self.model, self.data, self.pick_opt, ww / wh,
-            x / ww, 1.0 - y / wh, self.pick_scene, selected, geom, skin)
+            x / ww, 1.0 - y / wh, self.pick_scene, selected, geom, flex, skin)
         geom_id, body_id = int(geom[0]), int(body)
         index = self.geom_to_object.get(geom_id)
         self._log(f"cursor pixel = ({x:.1f}, {y:.1f})")
