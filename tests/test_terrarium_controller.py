@@ -1,5 +1,6 @@
 import unittest
 import queue
+from types import SimpleNamespace
 import numpy as np
 
 from terrarium_controller import TerrariumController
@@ -134,6 +135,29 @@ class MouseInteractionTests(unittest.TestCase):
         mouse.model = object()
         mouse.data = object()
         return mouse
+
+    @patch("mouse_interaction.mujoco.mjv_updateScene")
+    @patch("mouse_interaction.mujoco.mjv_select")
+    def test_pick_supplies_flex_output_required_by_current_mujoco(
+            self, select, _update_scene):
+        mouse = self.make_mouse(None)
+        mouse._dimensions = lambda: (800, 600, 800, 600)
+        mouse.pick_opt = object()
+        mouse.pick_scene = object()
+        mouse.viewer = SimpleNamespace(pert=object(), cam=object())
+        mouse.geom_to_object = {7: 2}
+        select.side_effect = lambda *args: (
+            args[8].__setitem__(0, 7) or 4)
+
+        picked = MouseInteraction._pick(mouse, 200, 150)
+
+        self.assertEqual(picked.object_index, 2)
+        self.assertEqual(picked.geom_id, 7)
+        self.assertEqual(picked.body_id, 4)
+        args = select.call_args.args
+        self.assertEqual(len(args), 11)
+        np.testing.assert_array_equal(args[9], np.array([-1], dtype=np.int32))
+        np.testing.assert_array_equal(args[10], np.array([-1], dtype=np.int32))
 
     @patch("mouse_interaction.mujoco.mj_forward")
     def test_object_drag_moves_picked_source_with_click_offset(self, forward):
