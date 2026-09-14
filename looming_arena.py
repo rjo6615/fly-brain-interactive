@@ -118,18 +118,19 @@ class LoomingArena(BaseArena):
             "geom",
             name="looming_predator_abdomen", type="ellipsoid",
             size=(ball_radius, ball_radius * .62, ball_radius * .62),
-            material=ball_mat,
+            material=ball_mat, group=1,
         )
         self.object_body.add(
             "geom", name="looming_predator_head", type="sphere",
             size=(ball_radius * .48,), pos=(-ball_radius * .82, 0, 0),
-            material=ball_mat)
+            material=ball_mat, group=1)
         for side in (-1, 1):
             self.object_body.add(
                 "geom", name=f"looming_predator_wing_{side}", type="ellipsoid",
                 size=(ball_radius * .75, ball_radius * .12, ball_radius * .42),
                 pos=(0, side * ball_radius * .75, ball_radius * .15),
-                euler=(0, -.25, side * .35), rgba=(.12, .10, .15, .82))
+                euler=(0, -.25, side * .35), rgba=(.12, .10, .15, .82),
+                group=1)
         # Eight splayed legs make the looming stimulus read as a stylized
         # spider rather than an unexplained floating sphere.
         for side in (-1, 1):
@@ -140,7 +141,7 @@ class LoomingArena(BaseArena):
                     "geom", name=f"looming_predator_leg_{side}_{j}",
                     type="capsule", size=(ball_radius * .10,),
                     fromto=(x, y0, -.1, x + (j-1.5)*.35, y1, -ball_radius*.35),
-                    material=ball_mat, conaffinity=0, contype=0)
+                    material=ball_mat, conaffinity=0, contype=0, group=1)
         # ── Taste zones: high-contrast, recognizable tabletop props ──
         _TASTE_LABELS = {'sugar': 'SUGAR (FOOD)', 'bitter': 'POISON (AVOID)'}
         if taste_zones:
@@ -165,7 +166,8 @@ class LoomingArena(BaseArena):
                     # another anonymous colored floor patch.
                     body.add("geom", name=f"taste_zone_{i}_dish",
                              type="cylinder", size=(3.0, .18), pos=(0, 0, .18),
-                             rgba=(.92, .95, 1, 1), conaffinity=0, contype=0)
+                             rgba=(.92, .95, 1, 1), conaffinity=0, contype=0,
+                             group=1)
                     for j, (x, y, s) in enumerate(((-.9, 0, .75),
                                                    (.65, .45, .62),
                                                    (.3, -.8, .52),
@@ -174,11 +176,11 @@ class LoomingArena(BaseArena):
                             "geom", name=f"sugar_crystal_{i}_{j}", type="box",
                             size=(s, s, s), pos=(x, y, s),
                             euler=(.2, .35, .2*j), material=mat,
-                            conaffinity=0, contype=0)
+                            conaffinity=0, contype=0, group=1)
                 else:
                     body.add("geom", name=f"poison_puddle_{i}", type="ellipsoid",
                              size=(2.8, 2.0, .16), pos=(0, 0, .16), material=mat,
-                             conaffinity=0, contype=0)
+                             conaffinity=0, contype=0, group=1)
                     for j, (x, y, s) in enumerate(((-.8, .5, .45),
                                                    (.7, -.3, .55),
                                                    (0, -.8, .32))):
@@ -186,13 +188,14 @@ class LoomingArena(BaseArena):
                             "geom", name=f"poison_bubble_{i}_{j}", type="sphere",
                             size=(s,), pos=(x, y, .15+s*.65),
                             rgba=(.12, .015, .02, 1),
-                            conaffinity=0, contype=0)
+                            conaffinity=0, contype=0, group=1)
                     # A raised white X remains legible from the default camera.
                     for j, yaw in enumerate((.78, -.78)):
                         body.add("geom", name=f"poison_cross_{i}_{j}",
                                  type="box", size=(1.55, .22, .10),
                                  pos=(0, 0, .38), euler=(0, 0, yaw),
-                                 rgba=(1, .96, .88, 1), conaffinity=0, contype=0)
+                                 rgba=(1, .96, .88, 1), conaffinity=0,
+                                 contype=0, group=1)
                 # Floating label site above zone
                 label = _TASTE_LABELS.get(zone.taste, zone.taste.upper())
                 body.add(
@@ -234,43 +237,45 @@ class LoomingArena(BaseArena):
                     body.add(
                         "geom", name=f"odor_source_{i}_fruit", type="ellipsoid",
                         size=(2.65, 2.45, 2.35), pos=(0, 0, 2.25),
-                        material=mat_core, conaffinity=0, contype=0)
+                        material=mat_core, conaffinity=0, contype=0, group=1)
                     body.add("geom", name=f"fruit_stem_{i}", type="capsule",
                              size=(.22, .8), pos=(0, 0, 5.0),
                              euler=(0, .18, 0), rgba=(.20, .08, .025, 1),
-                             conaffinity=0, contype=0)
+                             conaffinity=0, contype=0, group=1)
                     body.add(
                         "geom", name=f"fruit_leaf_{i}", type="ellipsoid",
                         size=(1.25, .48, .12), pos=(.8, 0, 4.65),
                         euler=(0, .35, .2), rgba=(.08, .52, .06, 1),
-                        conaffinity=0, contype=0)
+                        conaffinity=0, contype=0, group=1)
                     body.add("geom", name=f"fruit_flesh_{i}", type="ellipsoid",
                              size=(1.5, 1.0, .6), pos=(-3.0, 0, .7),
                              euler=(0, .2, 0), rgba=(1, .86, .42, 1),
-                             conaffinity=0, contype=0)
+                             conaffinity=0, contype=0, group=1)
                 else:
                     # Stoppered laboratory vial with dark contents and a small
                     # fungus cluster communicates an aversive source.
                     body.add("geom", name=f"danger_vial_{i}", type="cylinder",
                              size=(1.25, 2.0), pos=(0, 0, 2.0), material=mat_core,
-                             conaffinity=0, contype=0)
+                             conaffinity=0, contype=0, group=1)
                     body.add("geom", name=f"danger_stopper_{i}", type="cylinder",
                              size=(.8, .35), pos=(0, 0, 4.25),
-                             rgba=(.25, .14, .07, 1), conaffinity=0, contype=0)
+                             rgba=(.25, .14, .07, 1), conaffinity=0, contype=0,
+                             group=1)
                     for j, (x, y, s) in enumerate(((-1.2, .6, .55),
                                                    (1.0, .5, .42))):
                         body.add("geom", name=f"danger_clump_{i}_{j}", type="sphere",
                                  size=(s,), pos=(x, y, s), material=mat_core,
-                                 conaffinity=0, contype=0)
+                                 conaffinity=0, contype=0, group=1)
                     body.add(
                         "geom", name=f"danger_spike_{i}", type="capsule",
                         size=(.35, 1.2), pos=(0, 0, 2.35), material=mat_core,
-                        conaffinity=0, contype=0)
+                        conaffinity=0, contype=0, group=1)
                     for j, yaw in enumerate((.78, -.78)):
                         body.add("geom", name=f"danger_cross_{i}_{j}",
                                  type="box", size=(.85, .15, .08),
                                  pos=(0, -1.27, 2.2), euler=(0, 0, yaw),
-                                 rgba=(1, 1, .82, 1), conaffinity=0, contype=0)
+                                 rgba=(1, 1, .82, 1), conaffinity=0,
+                                 contype=0, group=1)
                 # Translucent halo
                 halo_rgba = (rgba[0], rgba[1], rgba[2], 0.07)
                 mat_halo = self.root_element.asset.add(
@@ -288,6 +293,7 @@ class LoomingArena(BaseArena):
                     material=mat_halo,
                     conaffinity=0,
                     contype=0,
+                    group=1,
                 )
                 # Floating label site above source
                 label = _ODOR_LABELS.get(src.odor_type, src.odor_type.upper())

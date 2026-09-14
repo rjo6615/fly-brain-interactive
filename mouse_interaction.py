@@ -84,7 +84,12 @@ class MouseInteraction:
         return ww, wh, fw, fh
 
     def _pick(self, x, y):
-        """Return controller index selected by MuJoCo's depth-aware picker."""
+        """Return the interactive object under the cursor.
+
+        ``mjv_select`` stops at the front-most rendered geometry.  In this
+        arena that is frequently a transparent glass wall, so use it first and
+        then cast a second ray containing only interactive geom group 1.
+        """
         import mujoco
         ww, wh, _, _ = self._dimensions()
         if ww <= 0 or wh <= 0:
@@ -108,15 +113,26 @@ class MouseInteraction:
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM,
                                  int(geomid[0])) or ""
         index = self.controller.index_for_geom(name)
+        if index is None:
+            eye, direction = self.camera_ray(x, y)
+            interactive = np.zeros(6, dtype=np.uint8)
+            interactive[1] = 1
+            geomid[0] = -1
+            mujoco.mj_ray(model, data, eye, direction, interactive, 1, -1,
+                          geomid)
+            if geomid[0] >= 0:
+                name = mujoco.mj_id2name(
+                    model, mujoco.mjtObj.mjOBJ_GEOM, int(geomid[0])) or ""
+                index = self.controller.index_for_geom(name)
         self._log(f"Hit object: {self.controller.objects[index][0] if index is not None else name}")
         return index
 
-    def floor_point(self, x, y, plane_z=0.0):
-        """Intersect the exact rendered camera ray with a horizontal plane."""
+    def camera_ray(self, x, y):
+        """Build a world-space ray for the current stereo viewer camera."""
         ww, wh, _, _ = self._dimensions()
         scene = getattr(self._sim, "_scene", None)
         if scene is None or ww <= 0 or wh <= 0:
-            return None
+            return None, None
         cameras = scene.camera
         eye = (np.asarray(cameras[0].pos) + np.asarray(cameras[1].pos)) / 2
         forward = np.asarray(cameras[0].forward, dtype=float)
@@ -124,8 +140,16 @@ class MouseInteraction:
         right = np.cross(forward, up)
         fovy = float(getattr(self._sim._model.vis.global_, "fovy", 45.0))
         half_h = np.tan(np.radians(fovy) / 2)
-        ray = (forward + (2*x/ww-1) * (ww/wh) * half_h * right +
-               (2*(1-y/wh)-1) * half_h * up)
+        direction = (forward + (2*x/ww-1) * (ww/wh) * half_h * right +
+                     (2*(1-y/wh)-1) * half_h * up)
+        direction /= np.linalg.norm(direction)
+        return eye, direction
+
+    def floor_point(self, x, y, plane_z=0.0):
+        """Intersect the exact rendered camera ray with a horizontal plane."""
+        eye, ray = self.camera_ray(x, y)
+        if eye is None:
+            return None
         if abs(ray[2]) < 1e-9:
             return None
         t = (plane_z-eye[2]) / ray[2]
