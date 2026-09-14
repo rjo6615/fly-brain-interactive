@@ -519,10 +519,10 @@ def main():
         # Configure viewer options and camera
         if viewer is not None:
             viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE
-            # Hide fly's default sites (groups 0-2), show only arena labels (group 4)
+            # Hide fly sites and show the arena's plain-language object labels.
             for g in range(3):
                 viewer.opt.sitegroup[g] = 0
-            viewer.opt.sitegroup[3] = 0
+            viewer.opt.sitegroup[3] = 1
             viewer.opt.sitegroup[4] = 1
         if viewer is not None and thorax_body_id >= 0 and args.terrarium:
             camera = CameraController(viewer, thorax_body_id)
@@ -538,13 +538,22 @@ def main():
     if args.terrarium:
         if not args.visual:
             parser.error('--terrarium requires --visual')
+
+        def reset_simulation():
+            """Repair both MuJoCo and FlyGym state after viewer Backspace."""
+            nonlocal obs, info, body_step
+            obs, info = sim.reset(seed=0)
+            body_step = 0
+
         terrarium_ref[0] = TerrariumController(
             arena_kwargs['arena'], taste_zones, odor_sources)
-        interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
+        interaction_ref[0] = InteractionController(
+            terrarium_ref[0], camera, reset_callback=reset_simulation)
         if viewer is not None:
             terrarium_hud = TerrariumHUD(viewer, terrarium_ref[0], camera)
             mouse_ref[0] = MouseInteraction(
-                viewer, terrarium_ref[0], debug=args.terrarium_input_debug)
+                viewer, terrarium_ref[0], model=sim.physics.model.ptr,
+                data=sim.physics.data.ptr, debug=args.terrarium_input_debug)
             terrarium_ref[0].mouse_available = mouse_ref[0].available
             if not mouse_ref[0].available:
                 print("[Terrarium] Mouse drag unavailable: "
