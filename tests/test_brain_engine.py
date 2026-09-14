@@ -10,6 +10,8 @@ class BrainEngineAdvanceTests(unittest.TestCase):
     def test_advance_delivers_every_neural_sample_to_decoder(self):
         brain = BrainEngine.__new__(BrainEngine)
         brain.populations = {"vision": [0]}
+        brain.num_neurons = 1
+        brain.dt = 0.1
         brain.step = Mock(side_effect=[
             torch.tensor([[0.0]]),
             torch.tensor([[1.0]]),
@@ -27,11 +29,17 @@ class BrainEngineAdvanceTests(unittest.TestCase):
         self.assertEqual(decoder.update.call_count, 3)
         self.assertEqual(callback.call_count, 3)
         self.assertEqual(result.item(), 0.0)
+        self.assertEqual(brain.last_activity, 1.0)
 
     def test_advance_rejects_empty_batches(self):
         brain = BrainEngine.__new__(BrainEngine)
         with self.assertRaisesRegex(ValueError, "at least one"):
             brain.advance(Mock(), steps=0)
+
+    def test_steps_for_elapsed_preserves_neural_clock(self):
+        brain = BrainEngine.__new__(BrainEngine)
+        brain.dt = 0.1
+        self.assertEqual(brain.steps_for_elapsed(0.01), 100)
 
 
 if __name__ == "__main__":

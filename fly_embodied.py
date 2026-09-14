@@ -599,11 +599,11 @@ def main():
     # ── Timing constants ──
     MONITOR_INTERVAL = 500   # send data every 500 body steps (~50ms sim)
     BRAIN_RATIO = 100        # poll sensors every 100 body steps (10 ms)
-    # A neural tick is 0.1 ms.  Advancing only once per sensor poll made the
-    # brain run at 1% speed: input neurons almost never fired, recurrent
-    # activity could not propagate, and the fly appeared inert.  Ten ticks is
-    # a responsive real-time compromise for the 15M-synapse model.
-    BRAIN_SUBSTEPS = 10
+    # Advance enough 0.1 ms ticks to cover the complete interval.  Using a
+    # fixed undersampled batch slows recurrent propagation and makes sensory
+    # activity effectively invisible to downstream motor neurons.
+    BRAIN_SUBSTEPS = (brain.steps_for_elapsed(BRAIN_RATIO * sim.timestep)
+                      if brain is not None else 1)
     VISION_RATIO = 1000     # process vision every 1000 body steps (= 100ms, 10Hz)
     STEPS_PER_FRAME = 167    # body steps per viewer frame (~60fps at 1e-4 timestep)
     STATUS_INTERVAL = 10000  # status print every 1.0s sim time
@@ -1113,6 +1113,7 @@ def main():
                     'dn_turn_L': d.get_group_rate('turn_L'),
                     'dn_turn_R': d.get_group_rate('turn_R'),
                     'threat_asym': bridge.threat_asym,
+                    'network': brain.last_activity if brain is not None else 0.0,
                 }
                 if terrarium_ref[0] is not None:
                     fly_pos_hud = obs['fly'][0]
