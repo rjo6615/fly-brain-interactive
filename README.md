@@ -338,6 +338,12 @@ connectome remains in control of the animal:
 python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
 ```
 
+As in the original embodied demo, the simulation starts with tonic P9 input,
+so the fly walks until sensory activity selects another behavior. The top-row
+number keys retain the neural stimulus controls (`2` restores P9 walking and
+`0` removes the tonic input); these are distinct from the numpad camera and
+object controls described below.
+
 Terrarium mode uses an application-owned GLFW window (not
 `mujoco.viewer.launch_passive`) and renders the simulation's existing
 `MjModel` and `MjData`. Add `--debug-mouse` to verify callback delivery,

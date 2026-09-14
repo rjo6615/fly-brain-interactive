@@ -168,8 +168,12 @@ def main():
           f"flygym={importlib.metadata.version('flygym')}")
 
     # -- State --
-    active_stimulus = [args.stimulus if args.stimulus is not None else
-                       (None if args.terrarium else 'p9')]
+    # Preserve the original simulation's tonic P9 walking drive.  Terrarium
+    # sensory inputs are layered onto this baseline and can still select
+    # escape, feeding, grooming, or flight through the connectome.  Starting
+    # terrarium mode with no stimulus leaves P9 silent and therefore makes a
+    # healthy simulation correctly display IDLE forever.
+    active_stimulus = [args.stimulus if args.stimulus is not None else 'p9']
     stim_changed = [True]
     auto_demo_enabled = [not args.no_auto and args.stimulus is None
                           and not args.visual]
@@ -197,6 +201,20 @@ def main():
     # simulation thread and can terminate the native viewer (notably on KP 0).
     terrarium_keys = queue.SimpleQueue()
 
+    def handle_stimulus_key(keycode):
+        """Apply the legacy stimulus keys; return whether one was handled."""
+        if keycode not in KEY_MAP:
+            return False
+        auto_demo_enabled[0] = False  # Manual key disables auto-demo
+        active_stimulus[0] = KEY_MAP[keycode]
+        stim_changed[0] = True
+        name = active_stimulus[0]
+        if name and name in STIMULI:
+            print(f"\n[Manual] {STIMULI[name]['description']}")
+        else:
+            print("\n[Manual] OFF -- spontaneous activity")
+        return True
+
     def key_callback(keycode):
         if args.terrarium and interaction_ref[0] is not None:
             terrarium_keys.put(keycode)
@@ -210,15 +228,7 @@ def main():
                 demo_time_remaining[0] = AUTO_DEMO_SEQUENCE[0][1]
             return
 
-        if keycode in KEY_MAP:
-            auto_demo_enabled[0] = False  # Manual key disables auto-demo
-            active_stimulus[0] = KEY_MAP[keycode]
-            stim_changed[0] = True
-            name = active_stimulus[0]
-            if name and name in STIMULI:
-                print(f"\n[Manual] {STIMULI[name]['description']}")
-            else:
-                print("\n[Manual] OFF -- spontaneous activity")
+        handle_stimulus_key(keycode)
 
     # ── Initialize brain ──
     brain = None
@@ -675,7 +685,8 @@ def main():
                         keycode = terrarium_keys.get_nowait()
                     except queue.Empty:
                         break
-                    interaction_ref[0].on_key(keycode)
+                    if not interaction_ref[0].on_key(keycode):
+                        handle_stimulus_key(keycode)
             if mouse_ref[0] is not None:
                 mouse_ref[0].poll()
 
