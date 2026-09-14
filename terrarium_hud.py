@@ -53,7 +53,7 @@ class TerrariumHUD:
             "\n".join(f"{name:<9} {float(val or 0):.2f}"
                       for name, val in sensory))
         if c.mouse_available:
-            controls = ("Left-drag  move on floor\nWheel while dragging  height\n"
+            controls = ("Left-drag  move on floor\nPredator selected + wheel  height\n"
                         "Right-click  deselect")
         else:
             controls = ("KP 0  select\nKP 4/6/8/2  move\n"
@@ -62,7 +62,7 @@ class TerrariumHUD:
             controls = f"SELECTED: {c.selected_name}\n\n" + controls
         add(mujoco.mjtGridPos.mjGRID_BOTTOMRIGHT, "OBJECT CONTROL", controls)
         if c.show_help:
-            help_text = ("OBJECTS\nLeft-click select   left-drag move   drag+wheel height\n"
+            help_text = ("OBJECTS\nLeft-click select   left-drag move   predator+wheel height\n"
                          "Right-click or empty click deselect\n\n"
                          "INTERACTION\nKP 5 poke\n\nCAMERA\nF follow   C cycle   mouse wheel zoom/orbit\n\n"
                          "SIMULATION\nSpace pause   Backspace reset\n\nUI\nH help   L labels   Tab HUD")

@@ -327,26 +327,34 @@ connectome remains in control of the animal:
 python fly_embodied.py --visual --monitor --flight --olfactory --gustatory --somatosensory --terrarium
 ```
 
+Terrarium mode uses an application-owned GLFW window (not
+`mujoco.viewer.launch_passive`) and renders the simulation's existing
+`MjModel` and `MjData`. Add `--debug-mouse` to verify callback delivery,
+picking IDs, world targets, and shared visual/sensory positions.
+
+The isolated manual reproduction uses the identical viewer and interaction
+classes without FlyGym or neural code:
+
+```bash
+python test_mouse_drag.py --debug-mouse
+```
+
 Left-click an object to select it, left-drag it across the substrate, and use
-the wheel while dragging to change the height of 3-D sources. Clicking empty
+the wheel while the predator is selected to change its height. Clicking empty
 space or right-clicking deselects it. Numpad `5` injects a
 transient JO touch pulse, `Enter` pauses,
 `-`/`+` changes playback speed, `1` follows the fly, `3` cycles camera modes,
 `.` resets the objects and camera, and `/` toggles help. The matching viewport
 shortcuts are `Space` (pause), `F` (follow), `C` (camera), `Backspace` (reset),
-`H` (help), `L` (labels), and `Tab` (HUD). The viewer's mouse wheel retains its
-native zoom behavior.
+`H` (help), `L` (labels), and `Tab` (HUD).
 
 Controls, current selection, camera mode, sensory readings, and selected DN
 activity use compact screen-edge panels. Object labels are off by default; a
-small brass ring marks the selected object. The mouse adapter chains MuJoCo's
-native GLFW handlers for non-object camera gestures; both mouse
-and key callbacks only queue commands for the simulation thread.
-Because the public passive-viewer `Handle` in some MuJoCo builds (including
-some Windows wheels) does not expose its GLFW window, startup detects that
-capability instead of assuming the private `_window` attribute exists. In that
-case the simulation remains usable and reports the numpad selection/movement
-controls as a compatibility fallback.
+small brass ring marks the selected object. The window registers GLFW
+callbacks directly; callbacks only queue commands, and the simulation thread
+applies mocap and shared sensory-position updates. Picking uses MuJoCo's
+depth-aware `mjv_select` with an explicit compiled geom-ID mapping. No private
+passive-viewer window or callback attributes are used.
 
 In terrarium mode, looming, touch, taste, and odor are injected at their
 sensory neuron populations. Legacy bridge-level chemical steering and
