@@ -1,234 +1,201 @@
-"""Native MuJoCo picking and camera-accurate terrarium dragging.
+"""MuJoCo picking and camera-correct dragging for :mod:`terrarium_viewer`.
 
-GLFW callbacks only enqueue input: MuJoCo model/data/scene access remains on the
-simulation thread.  The viewer's callbacks are chained, so an empty left drag
-still orbits and right/middle camera gestures retain their normal behaviour.
+GLFW callbacks enqueue plain input records. Model/data mutation happens only
+when ``poll`` is called by the simulation thread.
 """
 
+from dataclasses import dataclass
 import queue
+
+import glfw
+import mujoco
 import numpy as np
+
+
+@dataclass
+class Pick:
+    object_index: int
+    geom_id: int
+    body_id: int
+    point: np.ndarray
 
 
 class MouseInteraction:
     HEIGHT_PER_NOTCH = 0.5
 
-    def __init__(self, viewer, controller, model=None, data=None, debug=False):
+    def __init__(self, viewer, controller, model, data, debug=False):
         self.viewer, self.controller = viewer, controller
-        self.debug = debug
+        self.model, self.data, self.debug = model, data, debug
+        self.window = viewer.window
         self.events = queue.SimpleQueue()
         self.dragging = False
-        self._pending_left_pick = False
-        self._left_input_down = False
-        self._camera_left_active = False
-        self._sim = self._viewer_impl(viewer)
-        self.model = model
-        self.data = data
-        self._pick_scene = None
-        self.window = (getattr(self._sim, "_window", None) or
-                       getattr(viewer, "_window", None))
-        self.available = self.window is not None and self._sim is not None
-        self.unavailable_reason = None if self.available else (
-            "active passive-viewer GLFW window/scene is not exposed")
-        if not self.available:
-            self.glfw = None
-            return
-        import glfw
-        self.glfw = glfw
-        self._old_button = glfw.set_mouse_button_callback(self.window,
-                                                          self._mouse_button)
-        self._old_cursor = glfw.set_cursor_pos_callback(self.window,
-                                                        self._cursor_pos)
-        self._old_scroll = glfw.set_scroll_callback(self.window, self._scroll)
+        self.drag_plane_z = 0.0
+        self.drag_offset = np.zeros(2)
+        self.cursor = (0.0, 0.0)
+        self.last_pick = None
+        self.pick_opt = mujoco.MjvOption()
+        self.pick_opt.geomgroup[:] = 0
+        self.pick_opt.geomgroup[1] = 1
+        self.pick_scene = mujoco.MjvScene(model, maxgeom=10000)
+        self.available = True
+        self.unavailable_reason = None
+        self.geom_to_object = {}
+        self.body_to_object = {}
+        for geom_id in range(model.ngeom):
+            name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom_id)
+            index = controller.index_for_geom(name or "")
+            if index is not None:
+                self.geom_to_object[geom_id] = index
+                self.body_to_object[int(model.geom_bodyid[geom_id])] = index
+        viewer.set_input_callbacks(self._mouse_button, self._cursor_pos,
+                                   self._scroll)
+        if debug:
+            print(f"[Mouse] callback owner=TerrariumViewer GLFW window={self.window}")
+            print(f"[Mouse] geom_id -> object: {self._mapping_description()}")
 
-    @staticmethod
-    def _viewer_impl(viewer):
-        """Resolve the private renderer that actually owns GLFW and mjvScene."""
-        value = getattr(viewer, "_sim", None)
-        value = value() if callable(value) else value
-        return value or getattr(viewer, "_viewer", None)
+    def _mapping_description(self):
+        mapped = {}
+        for geom, index in self.geom_to_object.items():
+            mapped.setdefault(self.controller.objects[index][0], []).append(geom)
+        return ", ".join(f"{name}={ids}" for name, ids in mapped.items())
 
     def _log(self, message):
         if self.debug or self.controller.show_debug:
-            print(f"[Terrarium input] {message}")
+            print(message, flush=True)
 
     def _mouse_button(self, window, button, action, mods):
-        x, y = self.glfw.get_cursor_pos(window)
+        x, y = glfw.get_cursor_pos(window)
+        self._log("MOUSE BUTTON CALLBACK FIRED")
         self.events.put(("button", button, action, mods, x, y))
-        if button == self.glfw.MOUSE_BUTTON_LEFT:
-            self._pending_left_pick = action == self.glfw.PRESS
-            self._left_input_down = action == self.glfw.PRESS
-        self._log(f"Mouse {'down' if action == self.glfw.PRESS else 'released'}: "
-                  f"x={x:.1f}, y={y:.1f}")
-        # A left press cannot be passed to MuJoCo before the simulation thread
-        # has picked it: doing so arms the native camera and makes an object
-        # drag orbit the view as well.  ``poll`` replays the gesture only when
-        # the press hit empty space.  Other buttons remain native.
-        if (button != self.glfw.MOUSE_BUTTON_LEFT and
-                self._old_button is not None):
-            self._old_button(window, button, action, mods)
 
-    def _cursor_pos(self, window, x, y):
-        if self.dragging or self._left_input_down or self._pending_left_pick:
-            self.events.put(("move", x, y))
-        elif self._old_cursor is not None:
-            self._old_cursor(window, x, y)
+    def _cursor_pos(self, _window, x, y):
+        self.cursor = (x, y)
+        self._log("CURSOR CALLBACK FIRED")
+        self.events.put(("move", x, y))
 
-    def _scroll(self, window, xoffset, yoffset):
-        if self.controller.selected is not None:
-            self.events.put(("scroll", yoffset))
-        elif self._old_scroll is not None:
-            self._old_scroll(window, xoffset, yoffset)
+    def _scroll(self, _window, _xoffset, yoffset):
+        self._log("SCROLL CALLBACK FIRED")
+        self.events.put(("scroll", yoffset))
 
     def _dimensions(self):
-        # Cursor coordinates use logical window pixels; convert them before
-        # passing normalized coordinates to the framebuffer-sized viewport.
-        ww, wh = self.glfw.get_window_size(self.window)
-        fw, fh = self.glfw.get_framebuffer_size(self.window)
-        return ww, wh, fw, fh
-
-    def _selection_scene(self, mujoco):
-        """Get a scene for picking without relying on viewer private fields."""
-        scene = None
-        for name in ("_scene", "scene", "scn"):
-            scene = getattr(self._sim, name, None)
-            if scene is not None:
-                break
-        if scene is not None:
-            return scene
-        if self.model is None or self.data is None:
-            return None
-        # Current MuJoCo passive handles expose the GLFW window but not their
-        # internal mjvScene. Build the same scene from the public camera state.
-        scene = mujoco.MjvScene(self.model, maxgeom=10000)
-        perturb = mujoco.MjvPerturb()
-        mujoco.mjv_updateScene(
-            self.model, self.data, self.viewer.opt, perturb, self.viewer.cam,
-            mujoco.mjtCatBit.mjCAT_ALL, scene)
-        self._pick_scene = scene
-        return scene
-
-    def _pick(self, x, y):
-        """Return the interactive object under the cursor.
-
-        ``mjv_select`` stops at the front-most rendered geometry.  In this
-        arena that is frequently a transparent glass wall, so use it first and
-        then cast a second ray containing only interactive geom group 1.
-        """
-        import mujoco
-        ww, wh, _, _ = self._dimensions()
-        if ww <= 0 or wh <= 0:
-            return None
-        scene = self._selection_scene(mujoco)
-        model = (self.model if self.model is not None else
-                 getattr(self._sim, "_model", None))
-        data = (self.data if self.data is not None else
-                getattr(self._sim, "_data", None))
-        if scene is None or model is None or data is None:
-            return None
-        selpnt = np.zeros(3, dtype=np.float64)
-        geomid = np.array([-1], dtype=np.int32)
-        skinid = np.array([-1], dtype=np.int32)
-        # mjv_select returns body id and fills the closest visible geom.  This
-        # respects current camera, perspective, zoom, viewport and occlusion.
-        mujoco.mjv_select(model, data, self.viewer.opt, ww / wh,
-                          x / ww, 1.0 - y / wh, scene,
-                          selpnt, geomid, skinid)
-        self._log(f"Ray created; geom={int(geomid[0])}")
-        name = ""
-        index = None
-        if geomid[0] >= 0:
-            name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM,
-                                     int(geomid[0])) or ""
-            index = self.controller.index_for_geom(name)
-        if index is None:
-            eye, direction = self.camera_ray(x, y)
-            interactive = np.zeros(6, dtype=np.uint8)
-            interactive[1] = 1
-            geomid[0] = -1
-            mujoco.mj_ray(model, data, eye, direction, interactive, 1, -1,
-                          geomid)
-            if geomid[0] >= 0:
-                name = mujoco.mj_id2name(
-                    model, mujoco.mjtObj.mjOBJ_GEOM, int(geomid[0])) or ""
-                index = self.controller.index_for_geom(name)
-        # Some MuJoCo/passive-viewer combinations do not expose pickable
-        # mocap geoms consistently. The floor projection is deliberately
-        # generous and makes the complete visible prop an easy click target.
-        if index is None:
-            point = self.floor_point(x, y)
-            if point is not None:
-                index = self.controller.index_near(point[0], point[1])
-        self._log(f"Hit object: {self.controller.objects[index][0] if index is not None else name}")
-        return index
+        return (*glfw.get_window_size(self.window),
+                *glfw.get_framebuffer_size(self.window))
 
     def camera_ray(self, x, y):
-        """Build a world-space ray for the current stereo viewer camera."""
+        """Return the world ray represented by a logical-window cursor."""
         ww, wh, _, _ = self._dimensions()
-        scene = self._pick_scene
-        if scene is None:
-            for name in ("_scene", "scene", "scn"):
-                scene = getattr(self._sim, name, None)
-                if scene is not None:
-                    break
-        if scene is None or ww <= 0 or wh <= 0:
+        if ww <= 0 or wh <= 0:
             return None, None
-        cameras = scene.camera
+        cameras = self.viewer.scene.camera
         eye = (np.asarray(cameras[0].pos) + np.asarray(cameras[1].pos)) / 2
         forward = np.asarray(cameras[0].forward, dtype=float)
         up = np.asarray(cameras[0].up, dtype=float)
         right = np.cross(forward, up)
-        fovy = float(getattr(self._sim._model.vis.global_, "fovy", 45.0))
-        half_h = np.tan(np.radians(fovy) / 2)
+        half_h = np.tan(np.radians(float(self.model.vis.global_.fovy)) / 2)
         direction = (forward + (2*x/ww-1) * (ww/wh) * half_h * right +
                      (2*(1-y/wh)-1) * half_h * up)
         direction /= np.linalg.norm(direction)
         return eye, direction
 
-    def floor_point(self, x, y, plane_z=0.0):
-        """Intersect the exact rendered camera ray with a horizontal plane."""
+    def plane_point(self, x, y, plane_z):
         eye, ray = self.camera_ray(x, y)
-        if eye is None:
+        if eye is None or abs(ray[2]) < 1e-10:
             return None
-        if abs(ray[2]) < 1e-9:
+        distance = (plane_z - eye[2]) / ray[2]
+        return None if distance <= 0 else eye + distance * ray
+
+    def _pick(self, x, y):
+        ww, wh, _, _ = self._dimensions()
+        # Build a selection scene from the current camera containing only the
+        # authored interactive group. Glass and decorative foreground geoms
+        # therefore cannot steal the hit, while mjv_select still performs the
+        # actual geometry intersection and depth ordering.
+        mujoco.mjv_updateScene(
+            self.model, self.data, self.pick_opt, self.viewer.pert,
+            self.viewer.cam, mujoco.mjtCatBit.mjCAT_ALL, self.pick_scene)
+        selected = np.zeros(3, dtype=np.float64)
+        geom = np.array([-1], dtype=np.int32)
+        skin = np.array([-1], dtype=np.int32)
+        body = mujoco.mjv_select(
+            self.model, self.data, self.pick_opt, ww / wh,
+            x / ww, 1.0 - y / wh, self.pick_scene, selected, geom, skin)
+        geom_id, body_id = int(geom[0]), int(body)
+        index = self.geom_to_object.get(geom_id)
+        self._log(f"cursor pixel = ({x:.1f}, {y:.1f})")
+        self._log(f"relative cursor = ({x/ww:.6f}, {1-y/wh:.6f})")
+        self._log(f"selected geom id = {geom_id}")
+        self._log(f"selected body id = {body_id}")
+        self._log("selected object = " +
+                  (self.controller.objects[index][0] if index is not None else "NONE"))
+        if index is None:
+            self._log("mjv_select returned no interactive geom" if geom_id < 0
+                      else "mjv_select hit a non-interactive geom")
             return None
-        t = (plane_z-eye[2]) / ray[2]
-        return None if t <= 0 else eye + t*ray
+        return Pick(index, geom_id, body_id, selected.copy())
+
+    def _debug_state(self, button="LEFT DRAG", target=None):
+        actual = self.controller.selected_position
+        self._log("MOUSE:")
+        self._log(f"cursor: {self.cursor[0]:.0f}, {self.cursor[1]:.0f}")
+        self._log(f"button: {button}")
+        self._log(f"picked geom: {self.last_pick.geom_id if self.last_pick else -1}")
+        self._log(f"picked body: {self.last_pick.body_id if self.last_pick else -1}")
+        self._log(f"object: {self.controller.selected_name}")
+        self._log(f"dragging: {'YES' if self.dragging else 'NO'}")
+        if target is not None:
+            self._log("world target: " + np.array2string(target, precision=3))
+        if actual is not None:
+            self._log("actual object pos: " +
+                      np.array2string(np.asarray(actual), precision=3))
+            value = np.array2string(np.asarray(actual), precision=3)
+            if self.controller.selected_name in ("FOOD", "DANGER"):
+                name = self.controller.selected_name.lower()
+                self._log(f"visual/world {name} position: {value}")
+                self._log(f"olfactory {name} source position: {value}")
+            elif self.controller.selected_name == "PREDATOR":
+                self._log(f"visual/world predator position: {value}")
+                self._log(f"looming predator source position: {value}")
 
     def poll(self):
-        if not self.available:
-            return
         while True:
             try:
                 event = self.events.get_nowait()
             except queue.Empty:
                 return
             if event[0] == "button":
-                _, button, action, mods, x, y = event
-                if button == self.glfw.MOUSE_BUTTON_RIGHT and action == self.glfw.PRESS:
-                    self.controller.select(None); self.dragging = False
-                elif button == self.glfw.MOUSE_BUTTON_LEFT:
-                    if action == self.glfw.PRESS:
-                        picked = self._pick(x, y)
-                        self.controller.select(picked)
-                        self.dragging = picked is not None
-                        self._pending_left_pick = False
-                        self._camera_left_active = picked is None
-                        if self._camera_left_active and self._old_button:
-                            self._old_button(self.window, button, action, mods)
-                        self._log(f"Selected: {self.controller.selected_name}")
-                    else:
-                        self.dragging = False
-                        if self._camera_left_active and self._old_button:
-                            self._old_button(self.window, button, action, mods)
-                        self._camera_left_active = False
-            elif event[0] == "move":
-                if self.dragging:
-                    point = self.floor_point(event[1], event[2])
-                    if point is not None:
-                        self.controller.place_selected(point[0], point[1])
-                        self._log(f"Dragging {self.controller.selected_name} to world "
-                                  f"position: x={point[0]:.2f}, y={point[1]:.2f}, z={point[2]:.2f}")
-                elif self._camera_left_active and self._old_cursor:
-                    self._old_cursor(self.window, event[1], event[2])
-            elif event[0] == "scroll" and self.controller.selected is not None:
-                self.controller.adjust_selected_height(event[1] * self.HEIGHT_PER_NOTCH)
+                _, button, action, _mods, x, y = event
+                self.cursor = (x, y)
+                if button == glfw.MOUSE_BUTTON_RIGHT and action == glfw.PRESS:
+                    self.controller.select(None)
+                    self.dragging = False
+                    self.last_pick = None
+                    self._debug_state("RIGHT DOWN")
+                elif button == glfw.MOUSE_BUTTON_LEFT and action == glfw.PRESS:
+                    self.last_pick = self._pick(x, y)
+                    self.controller.select(
+                        None if self.last_pick is None else self.last_pick.object_index)
+                    self.dragging = self.last_pick is not None
+                    if self.dragging:
+                        pos = np.asarray(self.controller.selected_position)
+                        self.drag_plane_z = float(pos[2]) if len(pos) > 2 else 0.0
+                        point = self.plane_point(x, y, self.drag_plane_z)
+                        self.drag_offset[:] = (pos[:2] - point[:2]
+                                               if point is not None else 0.0)
+                    self._debug_state("LEFT DOWN")
+                elif button == glfw.MOUSE_BUTTON_LEFT and action == glfw.RELEASE:
+                    self.dragging = False
+                    self._debug_state("LEFT UP")
+            elif event[0] == "move" and self.dragging:
+                point = self.plane_point(event[1], event[2], self.drag_plane_z)
+                if point is not None:
+                    target = point.copy()
+                    target[:2] += self.drag_offset
+                    self.controller.place_selected(target[0], target[1])
+                    mujoco.mj_forward(self.model, self.data)
+                    self._debug_state(target=target)
+            elif (event[0] == "scroll" and
+                  self.controller.selected_name == "PREDATOR"):
+                self.controller.adjust_selected_height(
+                    event[1] * self.HEIGHT_PER_NOTCH)
+                mujoco.mj_forward(self.model, self.data)
+                self._debug_state("WHEEL")

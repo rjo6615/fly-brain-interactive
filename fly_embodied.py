@@ -25,6 +25,7 @@ Keys (in MuJoCo viewer window):
 
 import sys
 import argparse
+import importlib.metadata
 import queue
 import numpy as np
 import mujoco
@@ -51,6 +52,7 @@ from interaction_controller import InteractionController
 from camera_controller import CameraController
 from terrarium_hud import TerrariumHUD, monitor_fields
 from mouse_interaction import MouseInteraction
+from terrarium_viewer import TerrariumViewer
 from wall_sensing import WallMechanosensor
 
 try:
@@ -158,7 +160,12 @@ def main():
                         help='Enable interactive world, camera, pause and HUD controls')
     parser.add_argument('--terrarium-input-debug', action='store_true',
                         help='Log GLFW, native picking, and world drag events')
+    parser.add_argument('--debug-mouse', action='store_true',
+                        help='Log every mouse callback, pick, and drag update')
     args = parser.parse_args()
+    args.terrarium_input_debug |= args.debug_mouse
+    print(f"[Versions] mujoco={mujoco.__version__} "
+          f"flygym={importlib.metadata.version('flygym')}")
 
     # -- State --
     active_stimulus = [args.stimulus if args.stimulus is not None else
@@ -504,18 +511,26 @@ def main():
                 geom_hide_ids.append(gid)
         print(f"[Vision] {len(geom_hide_ids)} geoms hidden during eye render")
 
-    # ── Launch MuJoCo viewer (clean, no UI panels) ──
+    # Terrarium mode owns GLFW so mouse delivery is a public, testable part of
+    # our architecture. Non-terrarium runs retain MuJoCo's passive viewer.
     viewer = None
     camera = None
     terrarium_hud = None
     if not args.no_viewer:
         print("Launching MuJoCo viewer...")
-        viewer = mujoco.viewer.launch_passive(
-            sim.physics.model.ptr, sim.physics.data.ptr,
-            key_callback=key_callback,
-            show_left_ui=False,
-            show_right_ui=False,
-        )
+        if args.terrarium:
+            print("[Viewer] architecture=TerrariumViewer (application-owned GLFW)")
+            viewer = TerrariumViewer(
+                sim.physics.model.ptr, sim.physics.data.ptr,
+                key_callback=key_callback)
+        else:
+            print("[Viewer] architecture=mujoco.viewer.launch_passive")
+            viewer = mujoco.viewer.launch_passive(
+                sim.physics.model.ptr, sim.physics.data.ptr,
+                key_callback=key_callback,
+                show_left_ui=False,
+                show_right_ui=False,
+            )
         # Configure viewer options and camera
         if viewer is not None:
             viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE
