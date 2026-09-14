@@ -16,7 +16,9 @@ class TerrariumHUD:
     @staticmethod
     def _bar(value, width=8):
         value = max(0.0, min(1.0, float(value or 0.0)))
-        return "|" * int(round(value * width)) or "-"
+        ticks = int(round(value * width))
+        glyph = "|" * ticks if ticks else ("." if value > 0 else "-")
+        return f"{value:4.2f} {glyph}"
 
     def draw(self):
         """Add compact panels when supported by this MuJoCo viewer version."""
@@ -38,7 +40,8 @@ class TerrariumHUD:
                 f"Speed  {c.speed:g}x\nSelected  {c.selected_name}\n"
                 f"Camera  {self.camera.mode_name if self.camera else 'FREE'}")
         add(mujoco.mjtGridPos.mjGRID_TOPLEFT, "TERRARIUM", left)
-        groups = (("P9", "p9"), ("DNa01", "dna01"), ("DNa02", "dna02"),
+        groups = (("Network", "network"),
+                  ("P9", "p9"), ("DNa01", "dna01"), ("DNa02", "dna02"),
                   ("MDN", "mdn"), ("GF", "gf"), ("aDN1", "adn1"),
                   ("MN9", "mn9"))
         add(mujoco.mjtGridPos.mjGRID_TOPRIGHT, "BRAIN ACTIVITY",
