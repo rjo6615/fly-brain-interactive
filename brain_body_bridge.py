@@ -322,6 +322,7 @@ class BrainEngine:
 
         # Population monitoring (registered externally)
         self.populations = {}  # {name: tensor_indices}
+        self.last_activity = 0.0
 
         print(f"[BrainEngine] {self.num_neurons} neurons on {self.device}")
         print(f"[BrainEngine] DN neurons mapped: "
@@ -471,6 +472,46 @@ class BrainEngine:
         spk = self.state[2]
         return {name: spk[0, idx].item()
                 for name, idx in self.dn_indices.items()}
+
+    def advance(self, decoder, steps=1, on_step=None):
+        """Advance several neural ticks and preserve every spike sample.
+
+        The embodied simulation samples sensors less often than the brain's
+        0.1 ms timestep.  Running a small batch here prevents the connectome
+        and rate decoder from effectively being slowed to the sensor polling
+        frequency.  In particular, a single sparse P9 spike can now propagate
+        through recurrent connections instead of disappearing between body
+        updates.
+        """
+        if steps < 1:
+            raise ValueError("steps must be at least one")
+        spike_total = None
+        for _ in range(steps):
+            spikes = self.step()
+            current_total = spikes.sum()
+            spike_total = (current_total if spike_total is None else
+                           spike_total + current_total)
+            decoder.update(
+                self.get_dn_spikes(),
+                self.get_population_spikes() if self.populations else None,
+            )
+            if on_step is not None:
+                on_step()
+        # Mean firing rate across the entire connectome.  Whole-network mean
+        # rates are much lower than the 200 Hz ceiling used for tiny DN groups,
+        # so use a 20 Hz display scale.  This gives the HUD an honest, visible
+        # indication that the network is active even while a particular
+        # descending-neuron group is silent.
+        mean_rate = (spike_total.item() / (steps * self.num_neurons) /
+                     (self.dt / 1000.0))
+        self.last_activity = min(mean_rate / 20.0, 1.0)
+        return spikes
+
+    def steps_for_elapsed(self, elapsed_seconds):
+        """Return neural ticks needed to cover an elapsed wall/body interval."""
+        if elapsed_seconds <= 0:
+            raise ValueError("elapsed_seconds must be positive")
+        return max(1, round(elapsed_seconds * 1000.0 / self.dt))
 
     def register_population(self, name, tensor_indices):
         """Register a neuron population for aggregate spike monitoring."""

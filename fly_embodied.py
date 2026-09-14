@@ -598,7 +598,12 @@ def main():
 
     # ── Timing constants ──
     MONITOR_INTERVAL = 500   # send data every 500 body steps (~50ms sim)
-    BRAIN_RATIO = 100        # 1 brain step per 100 body steps (10Hz neural update)
+    BRAIN_RATIO = 100        # poll sensors every 100 body steps (10 ms)
+    # Advance enough 0.1 ms ticks to cover the complete interval.  Using a
+    # fixed undersampled batch slows recurrent propagation and makes sensory
+    # activity effectively invisible to downstream motor neurons.
+    BRAIN_SUBSTEPS = (brain.steps_for_elapsed(BRAIN_RATIO * sim.timestep)
+                      if brain is not None else 1)
     VISION_RATIO = 1000     # process vision every 1000 body steps (= 100ms, 10Hz)
     STEPS_PER_FRAME = 167    # body steps per viewer frame (~60fps at 1e-4 timestep)
     STATUS_INTERVAL = 10000  # status print every 1.0s sim time
@@ -889,14 +894,13 @@ def main():
                     BRAIN_RATIO * sim.timestep)
                 bridge.flight_active = flight_sys.is_airborne
 
-            # ── Brain step (1 per BRAIN_RATIO body steps) ──
+            # ── Brain batch (preserve the model's 0.1 ms neural timestep) ──
             if brain is not None and body_step % BRAIN_RATIO == 0:
-                brain.step()
-                dn_spikes = brain.get_dn_spikes()
-                pop_spikes = brain.get_population_spikes() if brain.populations else None
-                decoder.update(dn_spikes, pop_spikes)
+                on_neural_step = None
                 if consciousness is not None:
-                    consciousness.update(body_step, bridge.mode)
+                    def on_neural_step():
+                        consciousness.update(body_step, bridge.mode)
+                brain.advance(decoder, BRAIN_SUBSTEPS, on_neural_step)
 
             # ── Per-eye T2 fallback for directional escape ──
             if visual is not None and cached_visual[0] is not None:
@@ -1109,6 +1113,7 @@ def main():
                     'dn_turn_L': d.get_group_rate('turn_L'),
                     'dn_turn_R': d.get_group_rate('turn_R'),
                     'threat_asym': bridge.threat_asym,
+                    'network': brain.last_activity if brain is not None else 0.0,
                 }
                 if terrarium_ref[0] is not None:
                     fly_pos_hud = obs['fly'][0]
