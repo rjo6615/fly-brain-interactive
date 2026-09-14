@@ -92,11 +92,23 @@ git lfs pull   # downloads large data files (~270 MB)
 ### 2. Install Dependencies
 
 ```bash
-# PyTorch with CUDA 12.1 (adjust for your CUDA version)
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+# Install into the same Python interpreter that will run the simulation
+python -m pip install -r requirements.txt
+```
 
-# Core dependencies
-pip install flygym mujoco numpy scipy pandas matplotlib fpdf2 pygame pyarrow
+Using `python -m pip` rather than a bare `pip` is important on Windows, where
+they can otherwise resolve to different Python installations. Verify the
+environment before starting the simulation:
+
+```bash
+python -c "import numpy, mujoco, torch; print('Simulation dependencies OK')"
+```
+
+For an NVIDIA GPU, replace the default PyTorch package with the build matching
+your installed CUDA version. For example, for CUDA 12.1:
+
+```bash
+python -m pip install --force-reinstall torch --index-url https://download.pytorch.org/whl/cu121
 ```
 
 Or use conda:
@@ -104,7 +116,6 @@ Or use conda:
 ```bash
 conda env create -f environment.yml
 conda activate brain-fly
-pip install flygym mujoco fpdf2 pygame
 ```
 
 ### 3. Run

@@ -1,3 +1,2 @@
-flygym==1.2.1
-pandas==2.3.3
-numpy==2.0.2
+# Backward-compatible name retained for existing setup commands.
+-r requirements.txt

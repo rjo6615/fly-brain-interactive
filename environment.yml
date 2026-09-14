@@ -10,6 +10,12 @@ dependencies:
     - brian2cuda==1.0a7
     - torch
     - tqdm
+    - flygym==1.2.1
+    - mujoco>=3.3
+    - glfw
+    - dm-control
+    - pygame
+    - fpdf2
   - numpy=1.26.4
   - jupyter
   - ipykernel
