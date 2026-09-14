@@ -16,6 +16,7 @@ class TerrariumViewer:
 
     def __init__(self, model, data, key_callback=None, width=1280, height=720,
                  title="Fly brain terrarium"):
+        glfw.set_error_callback(self._glfw_error)
         if not glfw.init():
             raise RuntimeError("GLFW initialization failed")
         self.window = glfw.create_window(width, height, title, None, None)
@@ -43,6 +44,23 @@ class TerrariumViewer:
         glfw.set_mouse_button_callback(self.window, self._on_button)
         glfw.set_cursor_pos_callback(self.window, self._on_cursor)
         glfw.set_scroll_callback(self.window, self._on_scroll)
+        # Do not wait for hundreds of expensive neural/physics steps before
+        # the OS receives its first paint/event cycle. Present one complete
+        # MuJoCo frame synchronously while startup is still on this thread.
+        self.sync()
+        glfw.show_window(self.window)
+        glfw.focus_window(self.window)
+        glfw.post_empty_event()
+        x, y = glfw.get_window_pos(self.window)
+        fw, fh = glfw.get_framebuffer_size(self.window)
+        print(f"[Viewer] GLFW window opened pos=({x},{y}) framebuffer={fw}x{fh}",
+              flush=True)
+
+    @staticmethod
+    def _glfw_error(code, description):
+        if isinstance(description, bytes):
+            description = description.decode("utf-8", errors="replace")
+        print(f"[Viewer] GLFW error {code}: {description}", flush=True)
 
     def set_input_callbacks(self, mouse_button, cursor_pos, scroll):
         self._mouse_button_callback = mouse_button
@@ -87,6 +105,10 @@ class TerrariumViewer:
             mujoco.mjr_overlay(mujoco.mjtFontScale.mjFONTSCALE_150, gridpos,
                                viewport, title, content, self.context)
         glfw.swap_buffers(self.window)
+        glfw.poll_events()
+
+    def poll_events(self):
+        """Deliver input independently of the simulation's render cadence."""
         glfw.poll_events()
 
     def is_running(self):

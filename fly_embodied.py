@@ -652,6 +652,10 @@ def main():
     # ── Main loop ──
     try:
         while True:
+            # The owned GLFW window must receive OS events even when a neural
+            # step is slow. Passive viewer builds poll on their own thread.
+            if isinstance(viewer, TerrariumViewer):
+                viewer.poll_events()
             # Apply viewer input on the simulation thread. SimpleQueue keeps
             # the cross-thread callback itself limited to an atomic enqueue.
             if interaction_ref[0] is not None:
