@@ -17,9 +17,8 @@ class TerrariumHUD:
     def _bar(value, width=8):
         value = max(0.0, min(1.0, float(value or 0.0)))
         ticks = int(round(value * width))
-        if ticks:
-            return "|" * ticks
-        return "." if value > 0 else "-"
+        glyph = "|" * ticks if ticks else ("." if value > 0 else "-")
+        return f"{value:4.2f} {glyph}"
 
     def draw(self):
         """Add compact panels when supported by this MuJoCo viewer version."""

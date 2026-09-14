@@ -278,9 +278,12 @@ STIMULI = {
 class BrainEngine:
     """Wraps fly-brain TorchModel for step-by-step execution on GPU."""
 
-    def __init__(self, device='cuda', plastic_path=None):
+    def __init__(self, device='cuda', plastic_path=None, dt_ms=DT):
         self.device = device if torch.cuda.is_available() else 'cpu'
-        self.dt = DT  # 0.1 ms
+        self.dt = float(dt_ms)
+        if not 0 < self.dt <= MODEL_PARAMS['tauSyn']:
+            raise ValueError(
+                f"dt_ms must be in (0, {MODEL_PARAMS['tauSyn']}] ms")
         self._plastic_path = Path(plastic_path) if plastic_path else PLASTIC_PATH
 
         data_dir = Path(__file__).resolve().parent / 'data'

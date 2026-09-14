@@ -224,7 +224,10 @@ def main():
     brain = None
     if not args.no_brain:
         print("Initializing brain (138,639 neurons on GPU)...")
-        brain = BrainEngine(device='cuda')
+        # A 1 ms neural clock preserves the model's synaptic/membrane time
+        # constants while keeping the 15M-synapse closed loop interactive.
+        # The benchmark path retains its original 0.1 ms integration step.
+        brain = BrainEngine(device='cuda', dt_ms=1.0)
 
     # ── Initialize visual system (if --visual) ──
     visual = None
@@ -378,7 +381,9 @@ def main():
         fly.enable_vision = False
 
     # ── Initialize bridge ──
-    decoder = DNRateDecoder(window_ms=50.0, dt_ms=0.1, max_rate=200.0)
+    decoder = DNRateDecoder(
+        window_ms=50.0, dt_ms=brain.dt if brain is not None else 1.0,
+        max_rate=200.0)
     bridge = BrainBodyBridge(decoder, escape_threshold=0.3,
                              groom_threshold=0.02)
     groom_ctrl = GroomingController()
@@ -599,9 +604,10 @@ def main():
     # ── Timing constants ──
     MONITOR_INTERVAL = 500   # send data every 500 body steps (~50ms sim)
     BRAIN_RATIO = 100        # poll sensors every 100 body steps (10 ms)
-    # Advance enough 0.1 ms ticks to cover the complete interval.  Using a
-    # fixed undersampled batch slows recurrent propagation and makes sensory
-    # activity effectively invisible to downstream motor neurons.
+    # Advance enough neural ticks to cover the complete interval.  The
+    # interactive brain uses a stable 1 ms integration step, so this is ten
+    # sparse connectome updates per 10 ms sensor/body interval rather than the
+    # prohibitively slow hundred updates required at benchmark resolution.
     BRAIN_SUBSTEPS = (brain.steps_for_elapsed(BRAIN_RATIO * sim.timestep)
                       if brain is not None else 1)
     VISION_RATIO = 1000     # process vision every 1000 body steps (= 100ms, 10Hz)

@@ -40,6 +40,8 @@ class BrainEngineAdvanceTests(unittest.TestCase):
         brain = BrainEngine.__new__(BrainEngine)
         brain.dt = 0.1
         self.assertEqual(brain.steps_for_elapsed(0.01), 100)
+        brain.dt = 1.0
+        self.assertEqual(brain.steps_for_elapsed(0.01), 10)
 
 
 if __name__ == "__main__":
