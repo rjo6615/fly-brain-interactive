@@ -42,9 +42,10 @@ class InteractionController:
     KEY_F = ord('F')
     KEY_C = ord('C')
 
-    def __init__(self, terrarium, camera=None):
+    def __init__(self, terrarium, camera=None, reset_callback=None):
         self.terrarium = terrarium
         self.camera = camera
+        self.reset_callback = reset_callback
 
     def update_window_title(self):
         """Compatibility no-op for checkouts containing the old call site.
@@ -79,6 +80,11 @@ class InteractionController:
         elif keycode == self.KEY_FASTER:
             self.terrarium.faster()
         elif keycode in (self.KEY_RESET, self.KEY_BACKSPACE):
+            # The native viewer also resets mjData on Backspace. Re-run the
+            # simulation wrapper reset so FlyGym's pose/controller state does
+            # not disagree with MuJoCo and leave the fly inverted.
+            if self.reset_callback:
+                self.reset_callback()
             self.terrarium.reset()
             if self.camera:
                 self.camera.reset()
