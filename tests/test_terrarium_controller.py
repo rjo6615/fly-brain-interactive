@@ -4,7 +4,8 @@ import numpy as np
 
 from terrarium_controller import TerrariumController
 from interaction_controller import InteractionController
-from mouse_interaction import MouseInteraction
+from mouse_interaction import MouseInteraction, Pick
+from unittest.mock import patch
 
 
 class Source:
@@ -107,7 +108,7 @@ class TerrariumControllerTests(unittest.TestCase):
 
 
 class MouseInteractionTests(unittest.TestCase):
-    """The object gesture and native camera gesture must be exclusive."""
+    """The owned-window event queue moves only a successfully picked object."""
 
     def setUp(self):
         self.arena = Arena()
@@ -118,45 +119,43 @@ class MouseInteractionTests(unittest.TestCase):
 
     def make_mouse(self, picked):
         mouse = MouseInteraction.__new__(MouseInteraction)
-        mouse.available = True
         mouse.events = queue.SimpleQueue()
         mouse.dragging = False
-        mouse._pending_left_pick = True
-        mouse._left_input_down = True
-        mouse._camera_left_active = False
-        mouse.window = object()
-        mouse.glfw = type("Glfw", (), {
-            "MOUSE_BUTTON_LEFT": 0, "MOUSE_BUTTON_RIGHT": 1,
-            "PRESS": 1})()
+        mouse.drag_plane_z = 0.0
+        mouse.drag_offset = np.zeros(2)
+        mouse.cursor = (0, 0)
+        mouse.last_pick = None
         mouse.controller = self.controller
         mouse.controller.show_debug = False
         mouse._pick = lambda x, y: picked
-        mouse.floor_point = lambda x, y: np.array([x, y, 0.0])
+        mouse.plane_point = lambda x, y, z: np.array([x, y, z], dtype=float)
         mouse._log = lambda message: None
-        mouse.native_buttons = []
-        mouse.native_moves = []
-        mouse._old_button = lambda *args: mouse.native_buttons.append(args[1:])
-        mouse._old_cursor = lambda *args: mouse.native_moves.append(args[1:])
+        mouse._debug_state = lambda *args, **kwargs: None
+        mouse.model = object()
+        mouse.data = object()
         return mouse
 
-    def test_object_drag_does_not_arm_native_camera(self):
-        mouse = self.make_mouse(2)
+    @patch("mouse_interaction.mujoco.mj_forward")
+    def test_object_drag_moves_picked_source_with_click_offset(self, forward):
+        mouse = self.make_mouse(Pick(2, 8, 4, np.zeros(3)))
         mouse.events.put(("button", 0, 1, 0, 10, 20))
         mouse.events.put(("move", 12, 24))
         mouse.events.put(("button", 0, 0, 0, 12, 24))
         mouse.poll()
-        self.assertEqual(mouse.native_buttons, [])
-        self.assertEqual(mouse.native_moves, [])
-        np.testing.assert_allclose(self.food.position[:2], [12, 24])
+        # Click offset is [3,4]-[10,20], so the source follows without snap.
+        np.testing.assert_allclose(self.food.position[:2], [5, 8])
+        forward.assert_called_once_with(mouse.model, mouse.data)
 
-    def test_empty_drag_is_replayed_to_native_camera(self):
+    @patch("mouse_interaction.mujoco.mj_forward")
+    def test_empty_drag_does_not_move_any_object(self, forward):
         mouse = self.make_mouse(None)
         mouse.events.put(("button", 0, 1, 0, 10, 20))
         mouse.events.put(("move", 12, 24))
         mouse.events.put(("button", 0, 0, 0, 12, 24))
         mouse.poll()
-        self.assertEqual([event[1] for event in mouse.native_buttons], [1, 0])
-        self.assertEqual(mouse.native_moves, [(12, 24)])
+        np.testing.assert_allclose(self.food.position, [3, 4, 1])
+        self.assertEqual(self.controller.selected_name, "NONE")
+        forward.assert_not_called()
 
 
 if __name__ == '__main__':
