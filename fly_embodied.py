@@ -552,7 +552,8 @@ def main():
         if viewer is not None:
             terrarium_hud = TerrariumHUD(viewer, terrarium_ref[0], camera)
             mouse_ref[0] = MouseInteraction(
-                viewer, terrarium_ref[0], debug=args.terrarium_input_debug)
+                viewer, terrarium_ref[0], model=sim.physics.model.ptr,
+                data=sim.physics.data.ptr, debug=args.terrarium_input_debug)
             terrarium_ref[0].mouse_available = mouse_ref[0].available
             if not mouse_ref[0].available:
                 print("[Terrarium] Mouse drag unavailable: "

@@ -12,7 +12,7 @@ import numpy as np
 class MouseInteraction:
     HEIGHT_PER_NOTCH = 0.5
 
-    def __init__(self, viewer, controller, debug=False):
+    def __init__(self, viewer, controller, model=None, data=None, debug=False):
         self.viewer, self.controller = viewer, controller
         self.debug = debug
         self.events = queue.SimpleQueue()
@@ -21,6 +21,9 @@ class MouseInteraction:
         self._left_input_down = False
         self._camera_left_active = False
         self._sim = self._viewer_impl(viewer)
+        self.model = model
+        self.data = data
+        self._pick_scene = None
         self.window = (getattr(self._sim, "_window", None) or
                        getattr(viewer, "_window", None))
         self.available = self.window is not None and self._sim is not None
@@ -83,6 +86,27 @@ class MouseInteraction:
         fw, fh = self.glfw.get_framebuffer_size(self.window)
         return ww, wh, fw, fh
 
+    def _selection_scene(self, mujoco):
+        """Get a scene for picking without relying on viewer private fields."""
+        scene = None
+        for name in ("_scene", "scene", "scn"):
+            scene = getattr(self._sim, name, None)
+            if scene is not None:
+                break
+        if scene is not None:
+            return scene
+        if self.model is None or self.data is None:
+            return None
+        # Current MuJoCo passive handles expose the GLFW window but not their
+        # internal mjvScene. Build the same scene from the public camera state.
+        scene = mujoco.MjvScene(self.model, maxgeom=10000)
+        perturb = mujoco.MjvPerturb()
+        mujoco.mjv_updateScene(
+            self.model, self.data, self.viewer.opt, perturb, self.viewer.cam,
+            mujoco.mjtCatBit.mjCAT_ALL, scene)
+        self._pick_scene = scene
+        return scene
+
     def _pick(self, x, y):
         """Return the interactive object under the cursor.
 
@@ -94,9 +118,11 @@ class MouseInteraction:
         ww, wh, _, _ = self._dimensions()
         if ww <= 0 or wh <= 0:
             return None
-        scene = getattr(self._sim, "_scene", None)
-        model = getattr(self._sim, "_model", None)
-        data = getattr(self._sim, "_data", None)
+        scene = self._selection_scene(mujoco)
+        model = (self.model if self.model is not None else
+                 getattr(self._sim, "_model", None))
+        data = (self.data if self.data is not None else
+                getattr(self._sim, "_data", None))
         if scene is None or model is None or data is None:
             return None
         selpnt = np.zeros(3, dtype=np.float64)
@@ -138,7 +164,12 @@ class MouseInteraction:
     def camera_ray(self, x, y):
         """Build a world-space ray for the current stereo viewer camera."""
         ww, wh, _, _ = self._dimensions()
-        scene = getattr(self._sim, "_scene", None)
+        scene = self._pick_scene
+        if scene is None:
+            for name in ("_scene", "scene", "scn"):
+                scene = getattr(self._sim, name, None)
+                if scene is not None:
+                    break
         if scene is None or ww <= 0 or wh <= 0:
             return None, None
         cameras = scene.camera
