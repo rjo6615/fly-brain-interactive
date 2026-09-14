@@ -23,6 +23,8 @@ class TerrariumController:
 
     MOVE_STEP = 2.0
     POSITION_LIMIT = 30.5
+    PICK_RADII = {"PREDATOR": 8.0, "SUGAR": 5.0, "POISON": 5.0,
+                  "FOOD": 6.5, "DANGER": 5.0}
 
     def __init__(self, arena, taste_zones, odor_sources):
         self.arena = arena
@@ -70,6 +72,16 @@ class TerrariumController:
                 return None
             return 1 + self._taste_count + source_index
         return None
+
+    def index_near(self, x, y):
+        """Pick a nearby object on the floor as a renderer-independent fallback."""
+        point = np.asarray((x, y), dtype=float)
+        candidates = []
+        for index, (name, position) in enumerate(self.objects):
+            distance = float(np.linalg.norm(np.asarray(position)[:2] - point))
+            if distance <= self.PICK_RADII.get(name, 5.0):
+                candidates.append((distance, index))
+        return min(candidates)[1] if candidates else None
 
     @property
     def selected_name(self):

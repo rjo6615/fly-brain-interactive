@@ -538,9 +538,17 @@ def main():
     if args.terrarium:
         if not args.visual:
             parser.error('--terrarium requires --visual')
+
+        def reset_simulation():
+            """Repair both MuJoCo and FlyGym state after viewer Backspace."""
+            nonlocal obs, info, body_step
+            obs, info = sim.reset(seed=0)
+            body_step = 0
+
         terrarium_ref[0] = TerrariumController(
             arena_kwargs['arena'], taste_zones, odor_sources)
-        interaction_ref[0] = InteractionController(terrarium_ref[0], camera)
+        interaction_ref[0] = InteractionController(
+            terrarium_ref[0], camera, reset_callback=reset_simulation)
         if viewer is not None:
             terrarium_hud = TerrariumHUD(viewer, terrarium_ref[0], camera)
             mouse_ref[0] = MouseInteraction(

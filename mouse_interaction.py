@@ -108,11 +108,12 @@ class MouseInteraction:
                           x / ww, 1.0 - y / wh, scene,
                           selpnt, geomid, skinid)
         self._log(f"Ray created; geom={int(geomid[0])}")
-        if geomid[0] < 0:
-            return None
-        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM,
-                                 int(geomid[0])) or ""
-        index = self.controller.index_for_geom(name)
+        name = ""
+        index = None
+        if geomid[0] >= 0:
+            name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM,
+                                     int(geomid[0])) or ""
+            index = self.controller.index_for_geom(name)
         if index is None:
             eye, direction = self.camera_ray(x, y)
             interactive = np.zeros(6, dtype=np.uint8)
@@ -124,6 +125,13 @@ class MouseInteraction:
                 name = mujoco.mj_id2name(
                     model, mujoco.mjtObj.mjOBJ_GEOM, int(geomid[0])) or ""
                 index = self.controller.index_for_geom(name)
+        # Some MuJoCo/passive-viewer combinations do not expose pickable
+        # mocap geoms consistently. The floor projection is deliberately
+        # generous and makes the complete visible prop an easy click target.
+        if index is None:
+            point = self.floor_point(x, y)
+            if point is not None:
+                index = self.controller.index_near(point[0], point[1])
         self._log(f"Hit object: {self.controller.objects[index][0] if index is not None else name}")
         return index
 
