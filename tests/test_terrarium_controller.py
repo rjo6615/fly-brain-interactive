@@ -159,5 +159,58 @@ class MouseInteractionTests(unittest.TestCase):
         self.assertEqual(mouse.native_moves, [(12, 24)])
 
 
+class MouseInteractionTests(unittest.TestCase):
+    """The object gesture and native camera gesture must be exclusive."""
+
+    def setUp(self):
+        self.arena = Arena()
+        self.sugar = Source('sugar', center=[1, 2])
+        self.food = Source('food', position=[3, 4, 1])
+        self.controller = TerrariumController(
+            self.arena, [self.sugar], [self.food])
+
+    def make_mouse(self, picked):
+        mouse = MouseInteraction.__new__(MouseInteraction)
+        mouse.available = True
+        mouse.events = queue.SimpleQueue()
+        mouse.dragging = False
+        mouse._pending_left_pick = True
+        mouse._left_input_down = True
+        mouse._camera_left_active = False
+        mouse.window = object()
+        mouse.glfw = type("Glfw", (), {
+            "MOUSE_BUTTON_LEFT": 0, "MOUSE_BUTTON_RIGHT": 1,
+            "PRESS": 1})()
+        mouse.controller = self.controller
+        mouse.controller.show_debug = False
+        mouse._pick = lambda x, y: picked
+        mouse.floor_point = lambda x, y: np.array([x, y, 0.0])
+        mouse._log = lambda message: None
+        mouse.native_buttons = []
+        mouse.native_moves = []
+        mouse._old_button = lambda *args: mouse.native_buttons.append(args[1:])
+        mouse._old_cursor = lambda *args: mouse.native_moves.append(args[1:])
+        return mouse
+
+    def test_object_drag_does_not_arm_native_camera(self):
+        mouse = self.make_mouse(2)
+        mouse.events.put(("button", 0, 1, 0, 10, 20))
+        mouse.events.put(("move", 12, 24))
+        mouse.events.put(("button", 0, 0, 0, 12, 24))
+        mouse.poll()
+        self.assertEqual(mouse.native_buttons, [])
+        self.assertEqual(mouse.native_moves, [])
+        np.testing.assert_allclose(self.food.position[:2], [12, 24])
+
+    def test_empty_drag_is_replayed_to_native_camera(self):
+        mouse = self.make_mouse(None)
+        mouse.events.put(("button", 0, 1, 0, 10, 20))
+        mouse.events.put(("move", 12, 24))
+        mouse.events.put(("button", 0, 0, 0, 12, 24))
+        mouse.poll()
+        self.assertEqual([event[1] for event in mouse.native_buttons], [1, 0])
+        self.assertEqual(mouse.native_moves, [(12, 24)])
+
+
 if __name__ == '__main__':
     unittest.main()
