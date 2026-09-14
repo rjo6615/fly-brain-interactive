@@ -97,6 +97,10 @@ class TerrariumControllerTests(unittest.TestCase):
         # whose on_key method may still invoke this compatibility hook.
         self.assertIsNone(interaction.update_window_title())
         self.assertFalse(interaction.on_key(ord('W')))
+        # Top-row neural stimulus keys remain unclaimed so fly_embodied can
+        # dispatch them after terrarium commands are processed.
+        self.assertFalse(interaction.on_key(ord('2')))
+        self.assertFalse(interaction.on_key(ord('0')))
         self.assertTrue(interaction.on_key(interaction.KEY_UP))
         interaction.on_key(interaction.KEY_PAUSE)
         interaction.on_key(interaction.KEY_FASTER)
