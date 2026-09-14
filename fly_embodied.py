@@ -519,10 +519,10 @@ def main():
         # Configure viewer options and camera
         if viewer is not None:
             viewer.opt.label = mujoco.mjtLabel.mjLABEL_SITE
-            # Hide fly's default sites (groups 0-2), show only arena labels (group 4)
+            # Hide fly sites and show the arena's plain-language object labels.
             for g in range(3):
                 viewer.opt.sitegroup[g] = 0
-            viewer.opt.sitegroup[3] = 0
+            viewer.opt.sitegroup[3] = 1
             viewer.opt.sitegroup[4] = 1
         if viewer is not None and thorax_body_id >= 0 and args.terrarium:
             camera = CameraController(viewer, thorax_body_id)

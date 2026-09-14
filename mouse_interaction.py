@@ -18,6 +18,8 @@ class MouseInteraction:
         self.events = queue.SimpleQueue()
         self.dragging = False
         self._pending_left_pick = False
+        self._left_input_down = False
+        self._camera_left_active = False
         self._sim = self._viewer_impl(viewer)
         self.window = (getattr(self._sim, "_window", None) or
                        getattr(viewer, "_window", None))
@@ -51,17 +53,21 @@ class MouseInteraction:
         self.events.put(("button", button, action, mods, x, y))
         if button == self.glfw.MOUSE_BUTTON_LEFT:
             self._pending_left_pick = action == self.glfw.PRESS
+            self._left_input_down = action == self.glfw.PRESS
         self._log(f"Mouse {'down' if action == self.glfw.PRESS else 'released'}: "
                   f"x={x:.1f}, y={y:.1f}")
-        # Preserve native button state. Cursor motion is suppressed only after
-        # a real object is selected, so empty-ground left drags still orbit.
-        if self._old_button is not None:
+        # A left press cannot be passed to MuJoCo before the simulation thread
+        # has picked it: doing so arms the native camera and makes an object
+        # drag orbit the view as well.  ``poll`` replays the gesture only when
+        # the press hit empty space.  Other buttons remain native.
+        if (button != self.glfw.MOUSE_BUTTON_LEFT and
+                self._old_button is not None):
             self._old_button(window, button, action, mods)
 
     def _cursor_pos(self, window, x, y):
-        if self.dragging:
+        if self.dragging or self._left_input_down or self._pending_left_pick:
             self.events.put(("move", x, y))
-        elif self._old_cursor is not None and not self._pending_left_pick:
+        elif self._old_cursor is not None:
             self._old_cursor(window, x, y)
 
     def _scroll(self, window, xoffset, yoffset):
@@ -78,7 +84,12 @@ class MouseInteraction:
         return ww, wh, fw, fh
 
     def _pick(self, x, y):
-        """Return controller index selected by MuJoCo's depth-aware picker."""
+        """Return the interactive object under the cursor.
+
+        ``mjv_select`` stops at the front-most rendered geometry.  In this
+        arena that is frequently a transparent glass wall, so use it first and
+        then cast a second ray containing only interactive geom group 1.
+        """
         import mujoco
         ww, wh, _, _ = self._dimensions()
         if ww <= 0 or wh <= 0:
@@ -102,15 +113,26 @@ class MouseInteraction:
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM,
                                  int(geomid[0])) or ""
         index = self.controller.index_for_geom(name)
+        if index is None:
+            eye, direction = self.camera_ray(x, y)
+            interactive = np.zeros(6, dtype=np.uint8)
+            interactive[1] = 1
+            geomid[0] = -1
+            mujoco.mj_ray(model, data, eye, direction, interactive, 1, -1,
+                          geomid)
+            if geomid[0] >= 0:
+                name = mujoco.mj_id2name(
+                    model, mujoco.mjtObj.mjOBJ_GEOM, int(geomid[0])) or ""
+                index = self.controller.index_for_geom(name)
         self._log(f"Hit object: {self.controller.objects[index][0] if index is not None else name}")
         return index
 
-    def floor_point(self, x, y, plane_z=0.0):
-        """Intersect the exact rendered camera ray with a horizontal plane."""
+    def camera_ray(self, x, y):
+        """Build a world-space ray for the current stereo viewer camera."""
         ww, wh, _, _ = self._dimensions()
         scene = getattr(self._sim, "_scene", None)
         if scene is None or ww <= 0 or wh <= 0:
-            return None
+            return None, None
         cameras = scene.camera
         eye = (np.asarray(cameras[0].pos) + np.asarray(cameras[1].pos)) / 2
         forward = np.asarray(cameras[0].forward, dtype=float)
@@ -118,8 +140,16 @@ class MouseInteraction:
         right = np.cross(forward, up)
         fovy = float(getattr(self._sim._model.vis.global_, "fovy", 45.0))
         half_h = np.tan(np.radians(fovy) / 2)
-        ray = (forward + (2*x/ww-1) * (ww/wh) * half_h * right +
-               (2*(1-y/wh)-1) * half_h * up)
+        direction = (forward + (2*x/ww-1) * (ww/wh) * half_h * right +
+                     (2*(1-y/wh)-1) * half_h * up)
+        direction /= np.linalg.norm(direction)
+        return eye, direction
+
+    def floor_point(self, x, y, plane_z=0.0):
+        """Intersect the exact rendered camera ray with a horizontal plane."""
+        eye, ray = self.camera_ray(x, y)
+        if eye is None:
+            return None
         if abs(ray[2]) < 1e-9:
             return None
         t = (plane_z-eye[2]) / ray[2]
@@ -134,7 +164,7 @@ class MouseInteraction:
             except queue.Empty:
                 return
             if event[0] == "button":
-                _, button, action, _, x, y = event
+                _, button, action, mods, x, y = event
                 if button == self.glfw.MOUSE_BUTTON_RIGHT and action == self.glfw.PRESS:
                     self.controller.select(None); self.dragging = False
                 elif button == self.glfw.MOUSE_BUTTON_LEFT:
@@ -143,14 +173,23 @@ class MouseInteraction:
                         self.controller.select(picked)
                         self.dragging = picked is not None
                         self._pending_left_pick = False
+                        self._camera_left_active = picked is None
+                        if self._camera_left_active and self._old_button:
+                            self._old_button(self.window, button, action, mods)
                         self._log(f"Selected: {self.controller.selected_name}")
                     else:
                         self.dragging = False
-            elif event[0] == "move" and self.dragging:
-                point = self.floor_point(event[1], event[2])
-                if point is not None:
-                    self.controller.place_selected(point[0], point[1])
-                    self._log(f"Dragging {self.controller.selected_name} to world "
-                              f"position: x={point[0]:.2f}, y={point[1]:.2f}, z={point[2]:.2f}")
+                        if self._camera_left_active and self._old_button:
+                            self._old_button(self.window, button, action, mods)
+                        self._camera_left_active = False
+            elif event[0] == "move":
+                if self.dragging:
+                    point = self.floor_point(event[1], event[2])
+                    if point is not None:
+                        self.controller.place_selected(point[0], point[1])
+                        self._log(f"Dragging {self.controller.selected_name} to world "
+                                  f"position: x={point[0]:.2f}, y={point[1]:.2f}, z={point[2]:.2f}")
+                elif self._camera_left_active and self._old_cursor:
+                    self._old_cursor(self.window, event[1], event[2])
             elif event[0] == "scroll" and self.controller.selected is not None:
                 self.controller.adjust_selected_height(event[1] * self.HEIGHT_PER_NOTCH)
